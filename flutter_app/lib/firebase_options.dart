@@ -17,32 +17,17 @@ import 'package:flutter/foundation.dart'
 class DefaultFirebaseOptions {
   static FirebaseOptions get currentPlatform {
     if (kIsWeb) {
-      throw UnsupportedError(
-        'DefaultFirebaseOptions have not been configured for web - '
-        'you can reconfigure this by running the FlutterFire CLI again.',
-      );
+      return web;
     }
     switch (defaultTargetPlatform) {
       case TargetPlatform.android:
-        throw UnsupportedError(
-          'DefaultFirebaseOptions have not been configured for android - '
-          'you can reconfigure this by running the FlutterFire CLI again.',
-        );
+        return android;
       case TargetPlatform.iOS:
-        throw UnsupportedError(
-          'DefaultFirebaseOptions have not been configured for ios - '
-          'you can reconfigure this by running the FlutterFire CLI again.',
-        );
+        return ios;
       case TargetPlatform.macOS:
-        throw UnsupportedError(
-          'DefaultFirebaseOptions have not been configured for macos - '
-          'you can reconfigure this by running the FlutterFire CLI again.',
-        );
+        return macos;
       case TargetPlatform.windows:
-        throw UnsupportedError(
-          'DefaultFirebaseOptions have not been configured for windows - '
-          'you can reconfigure this by running the FlutterFire CLI again.',
-        );
+        return windows;
       case TargetPlatform.linux:
         throw UnsupportedError(
           'DefaultFirebaseOptions have not been configured for linux - '
@@ -54,4 +39,53 @@ class DefaultFirebaseOptions {
         );
     }
   }
+
+  static const FirebaseOptions web = FirebaseOptions(
+    apiKey: 'AIzaSyDL0jYJ2QMiHXoxm1ESnqfyNPASnnG9Ik8',
+    appId: '1:913124981780:web:1229e36c87f4b36b007b01',
+    messagingSenderId: '913124981780',
+    projectId: 'blockchain-based-major-project',
+    authDomain: 'blockchain-based-major-project.firebaseapp.com',
+    storageBucket: 'blockchain-based-major-project.firebasestorage.app',
+    measurementId: 'G-3L6CK8HSWZ',
+  );
+
+  static const FirebaseOptions macos = FirebaseOptions(
+    apiKey: 'AIzaSyA6Qa4WbvHnKTpKrrkr3ltjIFU70pmDPbw',
+    appId: '1:913124981780:ios:b2913e4ac815e20b007b01',
+    messagingSenderId: '913124981780',
+    projectId: 'blockchain-based-major-project',
+    storageBucket: 'blockchain-based-major-project.firebasestorage.app',
+    iosClientId: '913124981780-sin1v5mpova5ek1lpqm1268jrrhahvpt.apps.googleusercontent.com',
+    iosBundleId: 'com.example.flutterApp',
+  );
+
+  static const FirebaseOptions ios = FirebaseOptions(
+    apiKey: 'AIzaSyA6Qa4WbvHnKTpKrrkr3ltjIFU70pmDPbw',
+    appId: '1:913124981780:ios:b2913e4ac815e20b007b01',
+    messagingSenderId: '913124981780',
+    projectId: 'blockchain-based-major-project',
+    storageBucket: 'blockchain-based-major-project.firebasestorage.app',
+    iosClientId: '913124981780-sin1v5mpova5ek1lpqm1268jrrhahvpt.apps.googleusercontent.com',
+    iosBundleId: 'com.example.flutterApp',
+  );
+
+  static const FirebaseOptions android = FirebaseOptions(
+    apiKey: 'AIzaSyDCUuj3W1UGz6Wt3pmlGcl2Gg_OlbaKdpE',
+    appId: '1:913124981780:android:7e50342da0d24199007b01',
+    messagingSenderId: '913124981780',
+    projectId: 'blockchain-based-major-project',
+    storageBucket: 'blockchain-based-major-project.firebasestorage.app',
+  );
+
+  static const FirebaseOptions windows = FirebaseOptions(
+    apiKey: 'AIzaSyDL0jYJ2QMiHXoxm1ESnqfyNPASnnG9Ik8',
+    appId: '1:913124981780:web:0dc45a5d959941b6007b01',
+    messagingSenderId: '913124981780',
+    projectId: 'blockchain-based-major-project',
+    authDomain: 'blockchain-based-major-project.firebaseapp.com',
+    storageBucket: 'blockchain-based-major-project.firebasestorage.app',
+    measurementId: 'G-DGKQ9KP9YY',
+  );
+
 }

@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import '../utils/helpers.dart';
-import '../services/backend_api.dart';
 import '../services/auth_service.dart';
 import '../services/blockchain_service.dart';
 
@@ -63,7 +62,7 @@ class _UploadDocumentPageState extends State<UploadDocumentPage> {
       // But actually, the prompt implies "Blockchain", so let's use the BlockchainService
       // The original code CALLED BackendApi. But let's also store in our "Simulated Blockchain".
       // We will do both to satisfy the "Blockchain Document Verification" name.
-      
+
       // Store in Mock Blockchain
       final doc = await BlockchainService.storeDocument(
         fileName: _selectedFile!.name,
@@ -109,26 +108,28 @@ class _UploadDocumentPageState extends State<UploadDocumentPage> {
   void _showSuccessDialog(String docId) {
     showDialog(
       context: context,
-      builder:
-          (_) => AlertDialog(
-            title: const Text('Upload Successful'),
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Icon(Icons.check_circle, color: Colors.green, size: 60),
-                const SizedBox(height: 10),
-                const Text('Document stored on blockchain!'),
-                const SizedBox(height: 10),
-                Text('Document ID: $docId', style: const TextStyle(fontWeight: FontWeight.bold)),
-              ],
+      builder: (_) => AlertDialog(
+        title: const Text('Upload Successful'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.check_circle, color: Colors.green, size: 60),
+            const SizedBox(height: 10),
+            const Text('Document stored on blockchain!'),
+            const SizedBox(height: 10),
+            Text(
+              'Document ID: $docId',
+              style: const TextStyle(fontWeight: FontWeight.bold),
             ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: const Text('OK'),
-              ),
-            ],
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('OK'),
           ),
+        ],
+      ),
     );
   }
 
@@ -181,21 +182,19 @@ class _UploadDocumentPageState extends State<UploadDocumentPage> {
 
           // Upload button
           ElevatedButton.icon(
-            onPressed:
-                (_isUploading || _selectedFile == null)
-                    ? null
-                    : _uploadDocument,
-            icon:
-                _isUploading
-                    ? const SizedBox(
-                      width: 20,
-                      height: 20,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        color: Colors.white,
-                      ),
-                    )
-                    : const Icon(Icons.cloud_upload),
+            onPressed: (_isUploading || _selectedFile == null)
+                ? null
+                : _uploadDocument,
+            icon: _isUploading
+                ? const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: Colors.white,
+                    ),
+                  )
+                : const Icon(Icons.cloud_upload),
             label: Text(_isUploading ? 'Uploading...' : 'Upload to Blockchain'),
             style: ElevatedButton.styleFrom(
               padding: const EdgeInsets.all(16),
