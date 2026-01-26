@@ -1,9 +1,15 @@
 import 'package:flutter/material.dart';
+import 'dart:typed_data';
+import 'dart:io';
+import 'package:path_provider/path_provider.dart';
+import 'package:open_file/open_file.dart';
 import '../services/blockchain_service.dart';
+import '../services/storage_service.dart';
+import '../services/encryption_service.dart';
 import '../models/document.dart';
 import '../utils/helpers.dart';
 
-/// Verify Document Page - Verify document authenticity
+/// Verify Document Page - Production Realistic Flow
 class VerifyDocumentPage extends StatefulWidget {
   const VerifyDocumentPage({super.key});
 
@@ -14,6 +20,7 @@ class VerifyDocumentPage extends StatefulWidget {
 class _VerifyDocumentPageState extends State<VerifyDocumentPage> {
   final _docIdController = TextEditingController();
   bool _isVerifying = false;
+  bool _isDownloading = false;
   Map<String, dynamic>? _verificationResult;
 
   @override
@@ -22,12 +29,10 @@ class _VerifyDocumentPageState extends State<VerifyDocumentPage> {
     super.dispose();
   }
 
-  /// Verify document by ID
+  /// Verify document by ID against Blockchain
   Future<void> _verifyDocument() async {
     if (_docIdController.text.trim().isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please enter a document ID')),
-      );
+      _showSnackBar('Please enter a document ID');
       return;
     }
 
@@ -47,12 +52,59 @@ class _VerifyDocumentPageState extends State<VerifyDocumentPage> {
       });
     } catch (e) {
       setState(() => _isVerifying = false);
-      if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Verification error: $e')));
-      }
+      _showSnackBar('Verification error: $e');
     }
+  }
+
+  /// Download and Decrypt the document
+  Future<void> _downloadAndDecrypt(Document doc) async {
+    setState(() => _isDownloading = true);
+
+    try {
+      // 1. Download encrypted file from Firebase
+      final encryptedBytes = await StorageService.downloadFile(doc.storageUrl);
+
+      // 2. Verify Encrypted Hash
+      final downloadedEncryptedHash = EncryptionService.generateHash(encryptedBytes);
+      if (downloadedEncryptedHash != doc.encryptedDataHash) {
+        throw Exception("Stored file integrity check failed! Encrypted hashes do not match.");
+      }
+
+      // 3. Decrypt file
+      final decryptedBytes = await EncryptionService.decryptData(encryptedBytes);
+
+      // 4. Verify Original Hash
+      final decryptedHash = EncryptionService.generateHash(decryptedBytes);
+      if (decryptedHash != doc.originalHash) {
+        throw Exception("Original document integrity check failed! Decrypted hashes do not match.");
+      }
+
+      // 5. Save to temporary file and open
+      final tempDir = await getTemporaryDirectory();
+      final file = File('${tempDir.path}/${doc.name}');
+      await file.writeAsBytes(decryptedBytes);
+
+      setState(() => _isDownloading = false);
+      
+      _showSnackBar("Document decrypted and verified successfully!", isError: false);
+      
+      // Open the file
+      await OpenFile.open(file.path);
+      
+    } catch (e) {
+      setState(() => _isDownloading = false);
+      _showSnackBar("Download/Decryption failed: $e");
+    }
+  }
+
+  void _showSnackBar(String message, {bool isError = true}) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: isError ? Colors.red : Colors.green,
+      ),
+    );
   }
 
   @override
@@ -62,142 +114,108 @@ class _VerifyDocumentPageState extends State<VerifyDocumentPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // Header
           const Icon(Icons.verified_user, size: 80, color: Colors.blue),
           const SizedBox(height: 20),
           const Text(
-            'Verify Document',
+            'Production Verification',
             textAlign: TextAlign.center,
             style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 10),
           const Text(
-            'Check document authenticity on the blockchain',
+            'Check authenticity and decrypt stored documents',
             textAlign: TextAlign.center,
             style: TextStyle(color: Colors.grey),
           ),
           const SizedBox(height: 40),
 
-          // Document ID input field
           TextField(
             controller: _docIdController,
             decoration: const InputDecoration(
               labelText: 'Document ID',
-              hintText: 'Enter document ID (e.g., DOC-1234567890)',
+              hintText: 'e.g. DOC-1234567890',
               prefixIcon: Icon(Icons.fingerprint),
               border: OutlineInputBorder(),
             ),
           ),
           const SizedBox(height: 20),
 
-          // Verify button
           ElevatedButton.icon(
             onPressed: _isVerifying ? null : _verifyDocument,
-            icon:
-                _isVerifying
-                    ? const SizedBox(
-                      width: 20,
-                      height: 20,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        color: Colors.white,
-                      ),
-                    )
-                    : const Icon(Icons.search),
-            label: Text(_isVerifying ? 'Verifying...' : 'Verify on Blockchain'),
+            icon: _isVerifying
+                ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                : const Icon(Icons.search),
+            label: Text(_isVerifying ? 'Querying Blockchain...' : 'Verify on Blockchain'),
             style: ElevatedButton.styleFrom(
               padding: const EdgeInsets.all(16),
               backgroundColor: Colors.blue[700],
               foregroundColor: Colors.white,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(10),
-              ),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
             ),
           ),
           const SizedBox(height: 30),
 
-          // Verification result
-          if (_verificationResult != null)
-            _buildVerificationResult()
-          else if (!_isVerifying)
-            const Center(
-              child: Text(
-                'Enter a document ID to verify',
-                style: TextStyle(color: Colors.grey),
-              ),
-            ),
+          if (_verificationResult != null) _buildVerificationResult()
+          else if (!_isVerifying) const Center(child: Text('Enter a document ID to start', style: TextStyle(color: Colors.grey))),
         ],
       ),
     );
   }
 
-  /// Build verification result widget
   Widget _buildVerificationResult() {
     final isValid = _verificationResult!['verified'] as bool;
     final document = _verificationResult!['document'] as Document?;
 
     return Card(
       elevation: 5,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
       child: Padding(
-        padding: const EdgeInsets.all(20),
+        padding: const EdgeInsets.all(24),
         child: Column(
           children: [
-            // Verification icon
-            Icon(
-              isValid ? Icons.check_circle : Icons.cancel,
-              size: 60,
-              color: isValid ? Colors.green : Colors.red,
-            ),
+            Icon(isValid ? Icons.check_circle : Icons.cancel, size: 60, color: isValid ? Colors.green : Colors.red),
             const SizedBox(height: 15),
-
-            // Verification status
             Text(
-              isValid ? 'Document Verified!' : 'Document Not Found',
-              style: TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.bold,
-                color: isValid ? Colors.green : Colors.red,
-              ),
+              isValid ? 'Document Verified' : 'No Record Found',
+              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: isValid ? Colors.green : Colors.red),
             ),
             const SizedBox(height: 10),
+            Text(_verificationResult!['message'], textAlign: TextAlign.center, style: const TextStyle(color: Colors.grey)),
 
-            // Verification message
-            Text(
-              _verificationResult!['message'],
-              style: const TextStyle(color: Colors.grey),
-              textAlign: TextAlign.center,
-            ),
-
-            // Document details (if verified)
             if (isValid && document != null) ...[
               const SizedBox(height: 20),
               const Divider(),
               const SizedBox(height: 10),
-              _buildResultRow('Document Name', document.name),
-              _buildResultRow('File Type', document.type),
+              _buildResultRow('Name', document.name),
+              _buildResultRow('Type', document.type),
               _buildResultRow('Owner', document.owner),
-              _buildResultRow(
-                'Upload Date',
-                Helpers.formatDate(document.uploadDate),
-              ),
-              _buildResultRow('Block Number', document.blockNumber.toString()),
-              const SizedBox(height: 10),
-              const Divider(),
-              const SizedBox(height: 10),
-              const Text(
-                'Blockchain Hash:',
-                style: TextStyle(fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 5),
-              Text(
-                document.hash,
-                style: const TextStyle(
-                  fontSize: 10,
-                  fontFamily: 'monospace',
-                  color: Colors.grey,
-                ),
+              _buildResultRow('Block', document.blockNumber.toString()),
+              const SizedBox(height: 20),
+              
+              const Text('Original Hash:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+              const SizedBox(height: 4),
+              SelectableText(
+                document.originalHash,
+                style: const TextStyle(fontSize: 10, fontFamily: 'monospace', color: Colors.blue),
                 textAlign: TextAlign.center,
+              ),
+
+              const SizedBox(height: 24),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: _isDownloading ? null : () => _downloadAndDecrypt(document),
+                  icon: _isDownloading 
+                    ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
+                    : const Icon(Icons.download_for_offline),
+                  label: Text(_isDownloading ? 'Decrypting...' : 'Verify Content & Decrypt'),
+                  style: ElevatedButton.styleFrom(
+                    padding: const EdgeInsets.all(12),
+                    backgroundColor: Colors.green[700],
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  ),
+                ),
               ),
             ],
           ],
@@ -206,21 +224,14 @@ class _VerifyDocumentPageState extends State<VerifyDocumentPage> {
     );
   }
 
-  /// Build result row widget
   Widget _buildResultRow(String label, String value) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 5),
+      padding: const EdgeInsets.symmetric(vertical: 4),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           Text('$label:', style: const TextStyle(fontWeight: FontWeight.bold)),
-          Flexible(
-            child: Text(
-              value,
-              textAlign: TextAlign.right,
-              overflow: TextOverflow.ellipsis,
-            ),
-          ),
+          Flexible(child: Text(value, textAlign: TextAlign.right, overflow: TextOverflow.ellipsis)),
         ],
       ),
     );

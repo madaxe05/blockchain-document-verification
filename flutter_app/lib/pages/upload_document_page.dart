@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import '../utils/helpers.dart';
+import '../services/encryption_service.dart';
+import '../services/storage_service.dart';
 import '../services/blockchain_service.dart';
 
-/// Upload Document Page - Upload files to blockchain
+/// Upload Document Page - Production Realistic Flow
 class UploadDocumentPage extends StatefulWidget {
   const UploadDocumentPage({super.key});
 
@@ -14,6 +16,7 @@ class UploadDocumentPage extends StatefulWidget {
 class _UploadDocumentPageState extends State<UploadDocumentPage> {
   bool _isUploading = false;
   PlatformFile? _selectedFile;
+  String _statusMessage = "";
 
   /// Pick file from device
   Future<void> _pickFile() async {
@@ -21,108 +24,113 @@ class _UploadDocumentPageState extends State<UploadDocumentPage> {
       FilePickerResult? result = await FilePicker.platform.pickFiles(
         type: FileType.custom,
         allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png', 'txt', 'doc', 'docx'],
-        withData: true, // Important for web and when we need bytes
+        withData: true,
       );
 
       if (result != null) {
         setState(() {
           _selectedFile = result.files.first;
+          _statusMessage = "File selected: ${_selectedFile!.name}";
         });
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Error picking file: $e')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error picking file: $e')),
+        );
       }
     }
   }
 
-  Future<void> _uploadDocument() async {
-    if (_selectedFile == null) {
+  Future<void> _processUpload() async {
+    if (_selectedFile == null || _selectedFile!.bytes == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please select a file first')),
+        const SnackBar(content: Text('Please select a valid file first')),
       );
       return;
     }
 
-    setState(() => _isUploading = true);
+    setState(() {
+      _isUploading = true;
+      _statusMessage = "Starting upload process...";
+    });
 
     try {
-      final bytes = _selectedFile!.bytes;
-      if (bytes == null) {
-        throw Exception('Could not read file data. Try another file.');
-      }
+      final originalBytes = _selectedFile!.bytes!;
+      
+      // Step 1: Generate Original Hash
+      setState(() => _statusMessage = "Generating original hash...");
+      final originalHash = EncryptionService.generateHash(originalBytes);
 
-      // 1. Upload to Backend (Optional/Parallel) - keeping as per original code logic
-      // But actually, the prompt implies "Blockchain", so let's use the BlockchainService
-      // The original code CALLED BackendApi. But let's also store in our "Simulated Blockchain".
-      // We will do both to satisfy the "Blockchain Document Verification" name.
+      // Step 2: Encrypt File
+      setState(() => _statusMessage = "Encrypting file (AES-256)...");
+      final encryptedBytes = await EncryptionService.encryptData(originalBytes);
 
-      // Store in Mock Blockchain
+      // Step 3: Generate Encrypted Hash
+      final encryptedHash = EncryptionService.generateHash(encryptedBytes);
+
+      // Step 4: Upload to Firebase Storage
+      setState(() => _statusMessage = "Uploading encrypted file to Firebase...");
+      final storageUrl = await StorageService.uploadEncryptedFile(
+        fileName: _selectedFile!.name,
+        encryptedData: encryptedBytes,
+      );
+
+      // Step 5: Store on Blockchain
+      setState(() => _statusMessage = "Storing metadata on blockchain...");
       final doc = await BlockchainService.storeDocument(
         fileName: _selectedFile!.name,
         fileType: _selectedFile!.extension ?? 'unknown',
-        fileData: bytes,
+        originalHash: originalHash,
+        encryptedHash: encryptedHash,
+        storageUrl: storageUrl,
+        fileSize: originalBytes.length,
       );
-
-      // We can also call BackendApi if the user wants real file storage
-      // try {
-      //   await BackendApi.uploadDocument(
-      //     fileBytes: bytes,
-      //     fileName: _selectedFile!.name,
-      //     ownerId: email,
-      //     ownerName: user,
-      //     documentType: _selectedFile!.extension ?? 'Document',
-      //     issuerOrganization: 'Self Upload',
-      //     issueDate: DateTime.now(),
-      //   );
-      // } catch (e) {
-      //   print('Backend upload failed: $e');
-      //   // Continue as blockchain storage succeeded
-      // }
 
       if (!mounted) return;
 
       setState(() {
         _isUploading = false;
         _selectedFile = null;
+        _statusMessage = "";
       });
 
       _showSuccessDialog(doc.id);
     } catch (e) {
-      setState(() => _isUploading = false);
+      setState(() {
+        _isUploading = false;
+        _statusMessage = "Error occurred: $e";
+      });
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Upload error: $e')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Upload error: $e')),
+        );
       }
     }
   }
 
-  /// Show success dialog after upload
   void _showSuccessDialog(String docId) {
     showDialog(
       context: context,
       builder: (_) => AlertDialog(
-        title: const Text('Upload Successful'),
+        title: const Text('Production Upload Successful'),
         content: Column(
           mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Icon(Icons.check_circle, color: Colors.green, size: 60),
-            const SizedBox(height: 10),
-            const Text('Document stored on blockchain!'),
-            const SizedBox(height: 10),
-            Text(
-              'Document ID: $docId',
-              style: const TextStyle(fontWeight: FontWeight.bold),
-            ),
+            const Center(child: Icon(Icons.verified, color: Colors.green, size: 60)),
+            const SizedBox(height: 15),
+            const Text('✔ Document encrypted locally'),
+            const Text('✔ Uploaded to secure storage'),
+            const Text('✔ Hash stored on blockchain'),
+            const Divider(),
+            Text('Document ID: $docId', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
           ],
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('OK'),
+            child: const Text('Great!'),
           ),
         ],
       ),
@@ -136,69 +144,58 @@ class _UploadDocumentPageState extends State<UploadDocumentPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // Header
-          const Icon(Icons.cloud_upload, size: 80, color: Colors.blue),
+          const Icon(Icons.security, size: 80, color: Colors.blue),
           const SizedBox(height: 20),
           const Text(
-            'Upload Document',
+            'Production Upload',
             textAlign: TextAlign.center,
             style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 10),
           const Text(
-            'Securely store your document on the blockchain',
+            'AES-256 Encrypted & Blockchain Verified',
             textAlign: TextAlign.center,
-            style: TextStyle(color: Colors.grey),
+            style: TextStyle(color: Colors.grey, fontWeight: FontWeight.w500),
           ),
           const SizedBox(height: 40),
 
-          // File preview or placeholder
-          if (_selectedFile != null)
-            _buildFilePreview()
-          else
-            _buildFilePlaceholder(),
+          if (_selectedFile != null) _buildFilePreview() else _buildFilePlaceholder(),
+
+          if (_statusMessage.isNotEmpty) ...[
+            const SizedBox(height: 20),
+            Text(
+              _statusMessage,
+              textAlign: TextAlign.center,
+              style: TextStyle(color: Colors.blue[700], fontSize: 12, fontStyle: FontStyle.italic),
+            ),
+          ],
 
           const SizedBox(height: 30),
 
-          // Select file button
           ElevatedButton.icon(
             onPressed: _isUploading ? null : _pickFile,
             icon: const Icon(Icons.folder_open),
-            label: const Text('Select File'),
+            label: const Text('Select Document'),
             style: ElevatedButton.styleFrom(
               padding: const EdgeInsets.all(16),
-              backgroundColor: Colors.grey[700],
+              backgroundColor: Colors.grey[800],
               foregroundColor: Colors.white,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(10),
-              ),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
             ),
           ),
           const SizedBox(height: 15),
 
-          // Upload button
           ElevatedButton.icon(
-            onPressed: (_isUploading || _selectedFile == null)
-                ? null
-                : _uploadDocument,
+            onPressed: (_isUploading || _selectedFile == null) ? null : _processUpload,
             icon: _isUploading
-                ? const SizedBox(
-                    width: 20,
-                    height: 20,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      color: Colors.white,
-                    ),
-                  )
-                : const Icon(Icons.cloud_upload),
-            label: Text(_isUploading ? 'Uploading...' : 'Upload to Blockchain'),
+                ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                : const Icon(Icons.cloud_done),
+            label: Text(_isUploading ? 'Securing Document...' : 'Upload to Production'),
             style: ElevatedButton.styleFrom(
               padding: const EdgeInsets.all(16),
               backgroundColor: Colors.blue[700],
               foregroundColor: Colors.white,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(10),
-              ),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
             ),
           ),
         ],
@@ -206,47 +203,36 @@ class _UploadDocumentPageState extends State<UploadDocumentPage> {
     );
   }
 
-  /// Build file preview widget
   Widget _buildFilePreview() {
     return Card(
-      elevation: 3,
+      elevation: 4,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
       child: Padding(
         padding: const EdgeInsets.all(20),
         child: Column(
           children: [
-            Icon(
-              Helpers.getFileIcon(_selectedFile!.extension ?? ''),
-              size: 60,
-              color: Colors.blue[700],
-            ),
+            Icon(Helpers.getFileIcon(_selectedFile!.extension ?? ''), size: 60, color: Colors.blue[700]),
             const SizedBox(height: 15),
-            Text(
-              _selectedFile!.name,
-              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-              textAlign: TextAlign.center,
-            ),
+            Text(_selectedFile!.name, style: const TextStyle(fontWeight: FontWeight.bold), textAlign: TextAlign.center),
             const SizedBox(height: 5),
-            Text(
-              'Size: ${Helpers.formatFileSize(_selectedFile!.size)}',
-              style: const TextStyle(color: Colors.grey),
-            ),
+            Text(Helpers.formatFileSize(_selectedFile!.size), style: const TextStyle(color: Colors.grey)),
           ],
         ),
       ),
     );
   }
 
-  /// Build file placeholder widget
   Widget _buildFilePlaceholder() {
     return Container(
       padding: const EdgeInsets.all(40),
       decoration: BoxDecoration(
-        border: Border.all(color: Colors.grey, width: 2),
-        borderRadius: BorderRadius.circular(15),
+        color: Colors.blue.withOpacity(0.05),
+        border: Border.all(color: Colors.blue.withOpacity(0.3), width: 2, style: BorderStyle.solid),
+        borderRadius: BorderRadius.circular(20),
       ),
       child: const Column(
         children: [
-          Icon(Icons.file_upload, size: 60, color: Colors.grey),
+          Icon(Icons.file_present, size: 60, color: Colors.grey),
           SizedBox(height: 15),
           Text('No file selected', style: TextStyle(color: Colors.grey)),
         ],

@@ -1,13 +1,16 @@
-// ignore_for_file: deprecated_member_use
-
 import 'package:flutter/material.dart';
 import 'package:qr_flutter/qr_flutter.dart';
+import 'dart:io';
+import 'package:path_provider/path_provider.dart';
+import 'package:open_file/open_file.dart';
 import '../services/auth_service.dart';
 import '../services/blockchain_service.dart';
+import '../services/storage_service.dart';
+import '../services/encryption_service.dart';
 import '../models/document.dart';
 import '../utils/helpers.dart';
 
-/// Dashboard Page - Shows all user's uploaded documents
+/// Dashboard Page - Production Realistic
 class DashboardPage extends StatefulWidget {
   const DashboardPage({super.key});
 
@@ -17,6 +20,7 @@ class DashboardPage extends StatefulWidget {
 
 class _DashboardPageState extends State<DashboardPage> {
   late Future<List<Document>> _documentsFuture;
+  bool _isProcessing = false;
 
   @override
   void initState() {
@@ -28,6 +32,28 @@ class _DashboardPageState extends State<DashboardPage> {
     setState(() {
       _documentsFuture = BlockchainService.getUserDocuments();
     });
+  }
+
+  Future<void> _openDocument(Document doc) async {
+    setState(() => _isProcessing = true);
+    try {
+      final encryptedBytes = await StorageService.downloadFile(doc.storageUrl);
+      final decryptedBytes = await EncryptionService.decryptData(encryptedBytes);
+
+      final tempDir = await getTemporaryDirectory();
+      final file = File('${tempDir.path}/${doc.name}');
+      await file.writeAsBytes(decryptedBytes);
+
+      await OpenFile.open(file.path);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error opening document: $e'), backgroundColor: Colors.red),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isProcessing = false);
+    }
   }
 
   @override
@@ -42,99 +68,34 @@ class _DashboardPageState extends State<DashboardPage> {
       ),
       child: Column(
         children: [
-          // Header with user info
-          Padding(
-            padding: const EdgeInsets.all(20),
-            child: Column(
-              children: [
-                CircleAvatar(
-                  radius: 40,
-                  backgroundColor: Colors.white,
-                  child: Text(
-                    (AuthService.getCurrentUser() ?? "U")[0].toUpperCase(),
-                    style: TextStyle(
-                      fontSize: 32,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.blue[700],
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 10),
-                Text(
-                  'Welcome, ${AuthService.getCurrentUser() ?? "User"}!',
-                  style: const TextStyle(
-                    fontSize: 24,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.white,
-                  ),
-                ),
-                const SizedBox(height: 20),
-
-                // Statistics cards (FutureBuilder for stats)
-                FutureBuilder<List<Document>>(
-                  future: _documentsFuture,
-                  builder: (context, snapshot) {
-                    final count = snapshot.hasData ? snapshot.data!.length : 0;
-                    return Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                      children: [
-                        _buildStatCard(
-                          'Documents',
-                          count.toString(),
-                          Icons.description,
-                        ),
-                        _buildStatCard(
-                          'Verified',
-                          count.toString(), // All uploaded are verified/stored
-                          Icons.verified,
-                        ),
-                      ],
-                    );
-                  },
-                ),
-              ],
-            ),
-          ),
-
-          // Document list
+          _buildHeader(),
           Expanded(
             child: Container(
               decoration: const BoxDecoration(
                 color: Colors.white,
-                borderRadius: BorderRadius.only(
-                  topLeft: Radius.circular(30),
-                  topRight: Radius.circular(30),
-                ),
+                borderRadius: BorderRadius.only(topLeft: Radius.circular(30), topRight: Radius.circular(30)),
               ),
-              child: FutureBuilder<List<Document>>(
-                future: _documentsFuture,
-                builder: (context, snapshot) {
-                  if (snapshot.connectionState == ConnectionState.waiting) {
-                    return const Center(child: CircularProgressIndicator());
-                  }
-
-                  if (snapshot.hasError) {
-                    return Center(child: Text('Error: ${snapshot.error}'));
-                  }
-
-                  final documents = snapshot.data ?? [];
-
-                  return documents.isEmpty
-                      ? _buildEmptyState()
-                      : RefreshIndicator(
-                          onRefresh: () async => _refreshDocuments(),
-                          child: ListView.builder(
-                            padding: const EdgeInsets.all(20),
-                            itemCount: documents.length,
-                            itemBuilder: (context, index) {
-                              return _buildDocumentCard(
-                                context,
-                                documents[index],
-                              );
-                            },
-                          ),
-                        );
-                },
+              child: Stack(
+                children: [
+                   FutureBuilder<List<Document>>(
+                    future: _documentsFuture,
+                    builder: (context, snapshot) {
+                      if (snapshot.connectionState == ConnectionState.waiting) {
+                        return const Center(child: CircularProgressIndicator());
+                      }
+                      if (snapshot.hasError) {
+                        return Center(child: Text('Error: ${snapshot.error}'));
+                      }
+                      final documents = snapshot.data ?? [];
+                      return documents.isEmpty ? _buildEmptyState() : _buildDocumentList(documents);
+                    },
+                  ),
+                  if (_isProcessing)
+                    Container(
+                      color: Colors.black26,
+                      child: const Center(child: CircularProgressIndicator()),
+                    ),
+                ],
               ),
             ),
           ),
@@ -143,194 +104,170 @@ class _DashboardPageState extends State<DashboardPage> {
     );
   }
 
-  /// Build statistic card widget
-  Widget _buildStatCard(String label, String value, IconData icon) {
-    return Container(
+  Widget _buildHeader() {
+    return Padding(
       padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(15),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.1),
-            blurRadius: 10,
-            offset: const Offset(0, 5),
-          ),
-        ],
-      ),
       child: Column(
         children: [
-          Icon(icon, size: 30, color: Colors.blue[700]),
+          CircleAvatar(
+            radius: 40,
+            backgroundColor: Colors.white,
+            child: Text(
+              (AuthService.getCurrentUser() ?? "U")[0].toUpperCase(),
+              style: TextStyle(fontSize: 32, fontWeight: FontWeight.bold, color: Colors.blue[700]),
+            ),
+          ),
           const SizedBox(height: 10),
           Text(
-            value,
-            style: TextStyle(
-              fontSize: 24,
-              fontWeight: FontWeight.bold,
-              color: Colors.blue[700],
-            ),
+            'Welcome, ${AuthService.getCurrentUser() ?? "User"}!',
+            style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.white),
           ),
-          Text(label, style: const TextStyle(color: Colors.grey)),
-        ],
-      ),
-    );
-  }
-
-  /// Build empty state when no documents
-  Widget _buildEmptyState() {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(Icons.folder_open, size: 80, color: Colors.grey[300]),
           const SizedBox(height: 20),
-          const Text(
-            'No documents uploaded yet',
-            style: TextStyle(fontSize: 18, color: Colors.grey),
-          ),
-          const SizedBox(height: 10),
-          const Text(
-            'Upload your first document to get started',
-            style: TextStyle(color: Colors.grey),
+          FutureBuilder<List<Document>>(
+            future: _documentsFuture,
+            builder: (context, snapshot) {
+              final count = snapshot.hasData ? snapshot.data!.length : 0;
+              return Row(
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                children: [
+                  _buildStatCard('Stored', count.toString(), Icons.storage),
+                  _buildStatCard('Verified', count.toString(), Icons.verified),
+                ],
+              );
+            },
           ),
         ],
       ),
     );
   }
 
-  /// Build document card widget
-  Widget _buildDocumentCard(BuildContext context, Document doc) {
+  Widget _buildStatCard(String label, String value, IconData icon) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(15), boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 10, offset: const Offset(0, 5))]),
+      child: Column(
+        children: [
+          Icon(icon, size: 24, color: Colors.blue[700]),
+          const SizedBox(height: 8),
+          Text(value, style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.blue[700])),
+          Text(label, style: const TextStyle(color: Colors.grey, fontSize: 12)),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDocumentList(List<Document> documents) {
+    return RefreshIndicator(
+      onRefresh: () async => _refreshDocuments(),
+      child: ListView.builder(
+        padding: const EdgeInsets.all(20),
+        itemCount: documents.length,
+        itemBuilder: (context, index) => _buildDocumentCard(documents[index]),
+      ),
+    );
+  }
+
+  Widget _buildDocumentCard(Document doc) {
     return Card(
-      margin: const EdgeInsets.only(bottom: 15),
-      elevation: 3,
+      margin: const EdgeInsets.only(bottom: 12),
+      elevation: 2,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
       child: ListTile(
-        contentPadding: const EdgeInsets.all(15),
+        contentPadding: const EdgeInsets.all(12),
         leading: CircleAvatar(
-          backgroundColor: Colors.blue[700],
-          child: Icon(Helpers.getFileIcon(doc.type), color: Colors.white),
+          backgroundColor: Colors.blue[50],
+          child: Icon(Helpers.getFileIcon(doc.type), color: Colors.blue[700]),
         ),
-        title: Text(
-          doc.name,
-          style: const TextStyle(fontWeight: FontWeight.bold),
-        ),
-        subtitle: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+        title: Text(doc.name, style: const TextStyle(fontWeight: FontWeight.bold)),
+        subtitle: Text('Size: ${Helpers.formatFileSize(doc.fileSize)} • ${Helpers.formatDate(doc.uploadDate)}', style: const TextStyle(fontSize: 12)),
+        trailing: Row(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            const SizedBox(height: 5),
-            Text('Type: ${doc.type}'),
-            Text('Size: ${Helpers.formatFileSize(doc.fileSize)}'),
-            Text(
-              'Uploaded: ${Helpers.formatDate(doc.uploadDate)}',
-              style: const TextStyle(fontSize: 12, color: Colors.grey),
-            ),
+            IconButton(icon: const Icon(Icons.qr_code, size: 20), onPressed: () => _showQRCode(doc)),
+            const Icon(Icons.chevron_right, color: Colors.grey),
           ],
         ),
-        trailing: IconButton(
-          icon: const Icon(Icons.qr_code),
-          onPressed: () => _showQRCode(context, doc),
-        ),
-        onTap: () => _showDocumentDetails(context, doc),
+        onTap: () => _showDocumentDetails(doc),
       ),
     );
   }
 
-  /// Show QR code dialog
-  void _showQRCode(BuildContext context, Document doc) {
+  void _showQRCode(Document doc) {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Share Document'),
+        title: const Text('Share Verification ID'),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            QrImageView(data: doc.id, version: QrVersions.auto, size: 200.0),
-            const SizedBox(height: 20),
-            Text(
-              'Document ID: ${doc.id}',
-              style: const TextStyle(fontSize: 12),
-              textAlign: TextAlign.center,
-            ),
+            QrImageView(data: doc.id, size: 180),
             const SizedBox(height: 10),
-            const Text(
-              'Scan this QR code to verify the document',
-              style: TextStyle(fontSize: 12, color: Colors.grey),
-              textAlign: TextAlign.center,
-            ),
+            SelectableText(doc.id, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+            const SizedBox(height: 5),
+            const Text('Scan to verify this document on blockchain', textAlign: TextAlign.center, style: TextStyle(fontSize: 11, color: Colors.grey)),
           ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Close'),
-          ),
-        ],
+        actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('Close'))],
       ),
     );
   }
 
-  /// Show document details dialog
-  void _showDocumentDetails(BuildContext context, Document doc) {
+  void _showDocumentDetails(Document doc) {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Document Details'),
+        title: Text(doc.name),
         content: SingleChildScrollView(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
             children: [
-              _buildDetailRow('Name', doc.name),
-              _buildDetailRow('Type', doc.type),
               _buildDetailRow('Owner', doc.owner),
-              _buildDetailRow('Document ID', doc.id),
-              _buildDetailRow('Block Number', doc.blockNumber.toString()),
-              _buildDetailRow(
-                'File Size',
-                Helpers.formatFileSize(doc.fileSize),
-              ),
-              _buildDetailRow(
-                'Upload Date',
-                Helpers.formatDate(doc.uploadDate),
-              ),
+              _buildDetailRow('ID', doc.id),
+              _buildDetailRow('Block', doc.blockNumber.toString()),
+              _buildDetailRow('Date', Helpers.formatDate(doc.uploadDate)),
               const Divider(),
-              const Text(
-                'Blockchain Hash:',
-                style: TextStyle(fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 5),
-              Text(
-                doc.hash,
-                style: const TextStyle(fontSize: 10, fontFamily: 'monospace'),
+              const Text('Original Hash (SHA-256):', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+              SelectableText(doc.originalHash, style: const TextStyle(fontSize: 10, fontFamily: 'monospace', color: Colors.blue)),
+              const SizedBox(height: 20),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: () {
+                    Navigator.pop(context);
+                    _openDocument(doc);
+                  },
+                  icon: const Icon(Icons.open_in_new),
+                  label: const Text('Decrypt & Open'),
+                  style: ElevatedButton.styleFrom(backgroundColor: Colors.blue[700], foregroundColor: Colors.white),
+                ),
               ),
             ],
           ),
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Close'),
-          ),
-        ],
+        actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('Close'))],
       ),
     );
   }
 
-  /// Build detail row widget
   Widget _buildDetailRow(String label, String value) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 5),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text(label, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 11, color: Colors.grey)),
+        Text(value, style: const TextStyle(fontSize: 13)),
+      ]),
+    );
+  }
+
+  Widget _buildEmptyState() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          SizedBox(
-            width: 110,
-            child: Text(
-              '$label:',
-              style: const TextStyle(fontWeight: FontWeight.bold),
-            ),
-          ),
-          Expanded(child: Text(value)),
+          Icon(Icons.folder_open, size: 80, color: Colors.grey[200]),
+          const SizedBox(height: 16),
+          const Text('No documents secured yet', style: TextStyle(fontSize: 16, color: Colors.grey)),
         ],
       ),
     );
