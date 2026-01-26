@@ -1,3 +1,5 @@
+// ignore_for_file: deprecated_member_use
+
 import 'package:flutter/material.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import '../services/auth_service.dart';
@@ -30,7 +32,6 @@ class _DashboardPageState extends State<DashboardPage> {
 
   @override
   Widget build(BuildContext context) {
-    
     return Container(
       decoration: BoxDecoration(
         gradient: LinearGradient(
@@ -73,23 +74,23 @@ class _DashboardPageState extends State<DashboardPage> {
                 FutureBuilder<List<Document>>(
                   future: _documentsFuture,
                   builder: (context, snapshot) {
-                      final count = snapshot.hasData ? snapshot.data!.length : 0;
-                      return Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                        children: [
-                            _buildStatCard(
-                            'Documents',
-                            count.toString(),
-                            Icons.description,
-                            ),
-                            _buildStatCard(
-                            'Verified',
-                            count.toString(), // All uploaded are verified/stored
-                            Icons.verified,
-                            ),
-                        ],
-                      );
-                  }
+                    final count = snapshot.hasData ? snapshot.data!.length : 0;
+                    return Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                      children: [
+                        _buildStatCard(
+                          'Documents',
+                          count.toString(),
+                          Icons.description,
+                        ),
+                        _buildStatCard(
+                          'Verified',
+                          count.toString(), // All uploaded are verified/stored
+                          Icons.verified,
+                        ),
+                      ],
+                    );
+                  },
                 ),
               ],
             ),
@@ -111,7 +112,7 @@ class _DashboardPageState extends State<DashboardPage> {
                   if (snapshot.connectionState == ConnectionState.waiting) {
                     return const Center(child: CircularProgressIndicator());
                   }
-                  
+
                   if (snapshot.hasError) {
                     return Center(child: Text('Error: ${snapshot.error}'));
                   }
@@ -126,7 +127,10 @@ class _DashboardPageState extends State<DashboardPage> {
                             padding: const EdgeInsets.all(20),
                             itemCount: documents.length,
                             itemBuilder: (context, index) {
-                              return _buildDocumentCard(context, documents[index]);
+                              return _buildDocumentCard(
+                                context,
+                                documents[index],
+                              );
                             },
                           ),
                         );
@@ -235,38 +239,33 @@ class _DashboardPageState extends State<DashboardPage> {
   void _showQRCode(BuildContext context, Document doc) {
     showDialog(
       context: context,
-      builder:
-          (context) => AlertDialog(
-            title: const Text('Share Document'),
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                QrImageView(
-                  data: doc.id,
-                  version: QrVersions.auto,
-                  size: 200.0,
-                ),
-                const SizedBox(height: 20),
-                Text(
-                  'Document ID: ${doc.id}',
-                  style: const TextStyle(fontSize: 12),
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 10),
-                const Text(
-                  'Scan this QR code to verify the document',
-                  style: TextStyle(fontSize: 12, color: Colors.grey),
-                  textAlign: TextAlign.center,
-                ),
-              ],
+      builder: (context) => AlertDialog(
+        title: const Text('Share Document'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            QrImageView(data: doc.id, version: QrVersions.auto, size: 200.0),
+            const SizedBox(height: 20),
+            Text(
+              'Document ID: ${doc.id}',
+              style: const TextStyle(fontSize: 12),
+              textAlign: TextAlign.center,
             ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: const Text('Close'),
-              ),
-            ],
+            const SizedBox(height: 10),
+            const Text(
+              'Scan this QR code to verify the document',
+              style: TextStyle(fontSize: 12, color: Colors.grey),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Close'),
           ),
+        ],
+      ),
     );
   }
 
@@ -274,50 +273,46 @@ class _DashboardPageState extends State<DashboardPage> {
   void _showDocumentDetails(BuildContext context, Document doc) {
     showDialog(
       context: context,
-      builder:
-          (context) => AlertDialog(
-            title: const Text('Document Details'),
-            content: SingleChildScrollView(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  _buildDetailRow('Name', doc.name),
-                  _buildDetailRow('Type', doc.type),
-                  _buildDetailRow('Owner', doc.owner),
-                  _buildDetailRow('Document ID', doc.id),
-                  _buildDetailRow('Block Number', doc.blockNumber.toString()),
-                  _buildDetailRow(
-                    'File Size',
-                    Helpers.formatFileSize(doc.fileSize),
-                  ),
-                  _buildDetailRow(
-                    'Upload Date',
-                    Helpers.formatDate(doc.uploadDate),
-                  ),
-                  const Divider(),
-                  const Text(
-                    'Blockchain Hash:',
-                    style: TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(height: 5),
-                  Text(
-                    doc.hash,
-                    style: const TextStyle(
-                      fontSize: 10,
-                      fontFamily: 'monospace',
-                    ),
-                  ),
-                ],
+      builder: (context) => AlertDialog(
+        title: const Text('Document Details'),
+        content: SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _buildDetailRow('Name', doc.name),
+              _buildDetailRow('Type', doc.type),
+              _buildDetailRow('Owner', doc.owner),
+              _buildDetailRow('Document ID', doc.id),
+              _buildDetailRow('Block Number', doc.blockNumber.toString()),
+              _buildDetailRow(
+                'File Size',
+                Helpers.formatFileSize(doc.fileSize),
               ),
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: const Text('Close'),
+              _buildDetailRow(
+                'Upload Date',
+                Helpers.formatDate(doc.uploadDate),
+              ),
+              const Divider(),
+              const Text(
+                'Blockchain Hash:',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 5),
+              Text(
+                doc.hash,
+                style: const TextStyle(fontSize: 10, fontFamily: 'monospace'),
               ),
             ],
           ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Close'),
+          ),
+        ],
+      ),
     );
   }
 

@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import '../utils/helpers.dart';
-import '../services/auth_service.dart';
 import '../services/blockchain_service.dart';
 
 /// Upload Document Page - Upload files to blockchain
@@ -54,9 +53,6 @@ class _UploadDocumentPageState extends State<UploadDocumentPage> {
       if (bytes == null) {
         throw Exception('Could not read file data. Try another file.');
       }
-
-      final user = AuthService.getCurrentUser() ?? 'Unknown User';
-      final email = AuthService.getCurrentUserEmail() ?? 'unknown@email.com';
 
       // 1. Upload to Backend (Optional/Parallel) - keeping as per original code logic
       // But actually, the prompt implies "Blockchain", so let's use the BlockchainService

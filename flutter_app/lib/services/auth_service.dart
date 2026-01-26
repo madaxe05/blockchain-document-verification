@@ -3,7 +3,13 @@ import 'package:flutter/foundation.dart';
 
 /// Authentication Service - Handles user login, registration, and session using Firebase Auth
 class AuthService {
-  static final FirebaseAuth _auth = FirebaseAuth.instance;
+  static FirebaseAuth get _auth {
+    try {
+      return FirebaseAuth.instance;
+    } catch (e) {
+      throw Exception("Firebase not initialized. Run 'flutterfire configure'.");
+    }
+  }
 
   /// Login user with email and password
   static Future<bool> login(String email, String password) async {

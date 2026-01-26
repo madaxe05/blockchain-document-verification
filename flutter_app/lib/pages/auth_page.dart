@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import '../services/auth_service.dart';
 import 'home_page.dart';
@@ -26,12 +27,18 @@ class _AuthPageState extends State<AuthPage> {
 
   /// Check if user is already logged in
   Future<void> _checkLoginStatus() async {
-    final isLoggedIn = await AuthService.isLoggedIn();
-    if (isLoggedIn && mounted) {
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (context) => const HomePage()),
-      );
+    try {
+      final isLoggedIn = await AuthService.isLoggedIn();
+      if (isLoggedIn && mounted) {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (context) => const HomePage()),
+        );
+      }
+    } catch (e) {
+      if (kDebugMode) {
+        print('Auth Check Error: $e');
+      }
     }
   }
 
@@ -167,20 +174,19 @@ class _AuthPageState extends State<AuthPage> {
                               borderRadius: BorderRadius.circular(10),
                             ),
                           ),
-                          child:
-                              _isLoading
-                                  ? const SizedBox(
-                                    height: 20,
-                                    width: 20,
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 2,
-                                      color: Colors.white,
-                                    ),
-                                  )
-                                  : Text(
-                                    _isLogin ? 'Login' : 'Register',
-                                    style: const TextStyle(fontSize: 16),
+                          child: _isLoading
+                              ? const SizedBox(
+                                  height: 20,
+                                  width: 20,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: Colors.white,
                                   ),
+                                )
+                              : Text(
+                                  _isLogin ? 'Login' : 'Register',
+                                  style: const TextStyle(fontSize: 16),
+                                ),
                         ),
                       ),
                       const SizedBox(height: 16),
