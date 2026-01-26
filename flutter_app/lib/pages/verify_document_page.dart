@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'dart:typed_data';
 import 'dart:io';
 import 'package:path_provider/path_provider.dart';
 import 'package:open_file/open_file.dart';
@@ -7,7 +6,6 @@ import '../services/blockchain_service.dart';
 import '../services/storage_service.dart';
 import '../services/encryption_service.dart';
 import '../models/document.dart';
-import '../utils/helpers.dart';
 
 /// Verify Document Page - Production Realistic Flow
 class VerifyDocumentPage extends StatefulWidget {
@@ -65,18 +63,26 @@ class _VerifyDocumentPageState extends State<VerifyDocumentPage> {
       final encryptedBytes = await StorageService.downloadFile(doc.storageUrl);
 
       // 2. Verify Encrypted Hash
-      final downloadedEncryptedHash = EncryptionService.generateHash(encryptedBytes);
+      final downloadedEncryptedHash = EncryptionService.generateHash(
+        encryptedBytes,
+      );
       if (downloadedEncryptedHash != doc.encryptedDataHash) {
-        throw Exception("Stored file integrity check failed! Encrypted hashes do not match.");
+        throw Exception(
+          "Stored file integrity check failed! Encrypted hashes do not match.",
+        );
       }
 
       // 3. Decrypt file
-      final decryptedBytes = await EncryptionService.decryptData(encryptedBytes);
+      final decryptedBytes = await EncryptionService.decryptData(
+        encryptedBytes,
+      );
 
       // 4. Verify Original Hash
       final decryptedHash = EncryptionService.generateHash(decryptedBytes);
       if (decryptedHash != doc.originalHash) {
-        throw Exception("Original document integrity check failed! Decrypted hashes do not match.");
+        throw Exception(
+          "Original document integrity check failed! Decrypted hashes do not match.",
+        );
       }
 
       // 5. Save to temporary file and open
@@ -85,12 +91,14 @@ class _VerifyDocumentPageState extends State<VerifyDocumentPage> {
       await file.writeAsBytes(decryptedBytes);
 
       setState(() => _isDownloading = false);
-      
-      _showSnackBar("Document decrypted and verified successfully!", isError: false);
-      
+
+      _showSnackBar(
+        "Document decrypted and verified successfully!",
+        isError: false,
+      );
+
       // Open the file
       await OpenFile.open(file.path);
-      
     } catch (e) {
       setState(() => _isDownloading = false);
       _showSnackBar("Download/Decryption failed: $e");
@@ -143,20 +151,38 @@ class _VerifyDocumentPageState extends State<VerifyDocumentPage> {
           ElevatedButton.icon(
             onPressed: _isVerifying ? null : _verifyDocument,
             icon: _isVerifying
-                ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                ? const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: Colors.white,
+                    ),
+                  )
                 : const Icon(Icons.search),
-            label: Text(_isVerifying ? 'Querying Blockchain...' : 'Verify on Blockchain'),
+            label: Text(
+              _isVerifying ? 'Querying Blockchain...' : 'Verify on Blockchain',
+            ),
             style: ElevatedButton.styleFrom(
               padding: const EdgeInsets.all(16),
               backgroundColor: Colors.blue[700],
               foregroundColor: Colors.white,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
             ),
           ),
           const SizedBox(height: 30),
 
-          if (_verificationResult != null) _buildVerificationResult()
-          else if (!_isVerifying) const Center(child: Text('Enter a document ID to start', style: TextStyle(color: Colors.grey))),
+          if (_verificationResult != null)
+            _buildVerificationResult()
+          else if (!_isVerifying)
+            const Center(
+              child: Text(
+                'Enter a document ID to start',
+                style: TextStyle(color: Colors.grey),
+              ),
+            ),
         ],
       ),
     );
@@ -173,14 +199,26 @@ class _VerifyDocumentPageState extends State<VerifyDocumentPage> {
         padding: const EdgeInsets.all(24),
         child: Column(
           children: [
-            Icon(isValid ? Icons.check_circle : Icons.cancel, size: 60, color: isValid ? Colors.green : Colors.red),
+            Icon(
+              isValid ? Icons.check_circle : Icons.cancel,
+              size: 60,
+              color: isValid ? Colors.green : Colors.red,
+            ),
             const SizedBox(height: 15),
             Text(
               isValid ? 'Document Verified' : 'No Record Found',
-              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: isValid ? Colors.green : Colors.red),
+              style: TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+                color: isValid ? Colors.green : Colors.red,
+              ),
             ),
             const SizedBox(height: 10),
-            Text(_verificationResult!['message'], textAlign: TextAlign.center, style: const TextStyle(color: Colors.grey)),
+            Text(
+              _verificationResult!['message'],
+              textAlign: TextAlign.center,
+              style: const TextStyle(color: Colors.grey),
+            ),
 
             if (isValid && document != null) ...[
               const SizedBox(height: 20),
@@ -191,12 +229,19 @@ class _VerifyDocumentPageState extends State<VerifyDocumentPage> {
               _buildResultRow('Owner', document.owner),
               _buildResultRow('Block', document.blockNumber.toString()),
               const SizedBox(height: 20),
-              
-              const Text('Original Hash:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+
+              const Text(
+                'Original Hash:',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+              ),
               const SizedBox(height: 4),
               SelectableText(
                 document.originalHash,
-                style: const TextStyle(fontSize: 10, fontFamily: 'monospace', color: Colors.blue),
+                style: const TextStyle(
+                  fontSize: 10,
+                  fontFamily: 'monospace',
+                  color: Colors.blue,
+                ),
                 textAlign: TextAlign.center,
               ),
 
@@ -204,16 +249,28 @@ class _VerifyDocumentPageState extends State<VerifyDocumentPage> {
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton.icon(
-                  onPressed: _isDownloading ? null : () => _downloadAndDecrypt(document),
-                  icon: _isDownloading 
-                    ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
-                    : const Icon(Icons.download_for_offline),
-                  label: Text(_isDownloading ? 'Decrypting...' : 'Verify Content & Decrypt'),
+                  onPressed: _isDownloading
+                      ? null
+                      : () => _downloadAndDecrypt(document),
+                  icon: _isDownloading
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.download_for_offline),
+                  label: Text(
+                    _isDownloading
+                        ? 'Decrypting...'
+                        : 'Verify Content & Decrypt',
+                  ),
                   style: ElevatedButton.styleFrom(
                     padding: const EdgeInsets.all(12),
                     backgroundColor: Colors.green[700],
                     foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
                   ),
                 ),
               ),
@@ -231,7 +288,13 @@ class _VerifyDocumentPageState extends State<VerifyDocumentPage> {
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           Text('$label:', style: const TextStyle(fontWeight: FontWeight.bold)),
-          Flexible(child: Text(value, textAlign: TextAlign.right, overflow: TextOverflow.ellipsis)),
+          Flexible(
+            child: Text(
+              value,
+              textAlign: TextAlign.right,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
         ],
       ),
     );

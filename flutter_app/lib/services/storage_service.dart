@@ -1,4 +1,3 @@
-import 'dart:io';
 import 'dart:typed_data';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -24,7 +23,18 @@ class StorageService {
     );
 
     final snapshot = await uploadTask;
-    return await snapshot.ref.getDownloadURL();
+    
+    // Add a small retry loop for getDownloadURL as Firebase Storage can sometimes 
+    // have propagation lag, causing object-not-found errors right after upload.
+    for (int i = 0; i < 3; i++) {
+        try {
+            return await snapshot.ref.getDownloadURL();
+        } catch (e) {
+            if (i == 2) rethrow;
+            await Future.delayed(Duration(seconds: 1));
+        }
+    }
+    throw Exception("Could not retrieve download URL");
   }
 
   /// Download file from Firebase Storage

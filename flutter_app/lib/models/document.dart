@@ -1,5 +1,3 @@
-import 'dart:typed_data';
-
 /// Document Model - Represents a document stored on blockchain
 class Document {
   final String id; // Unique document ID

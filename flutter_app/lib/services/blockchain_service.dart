@@ -1,18 +1,14 @@
-import 'package:flutter/services.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:http/http.dart';
-import 'package:web3dart/web3dart.dart';
 import '../models/document.dart';
 import 'auth_service.dart';
 
 class BlockchainService {
-  static const String _rpcUrl = "http://10.0.2.2:8545"; // Local Ganache/Hardhat
-  static const String _contractAddress = "0x0000000000000000000000000000000000000000"; // Placeholder
+  // Local Ganache/Hardhat
+  // Placeholder
 
-  final Web3Client _client = Web3Client(_rpcUrl, Client());
-  
   // Reference to Firestore collection for metadata persistence
-  static final CollectionReference _docsCollection = FirebaseFirestore.instance.collection('documents');
+  static final CollectionReference _docsCollection = FirebaseFirestore.instance
+      .collection('documents');
 
   /// Store document metadata on blockchain AND Firestore (for persistence)
   static Future<Document> storeDocument({
@@ -43,7 +39,7 @@ class BlockchainService {
 
     // Simulate blockchain delay
     await Future.delayed(const Duration(seconds: 2));
-    
+
     final docId = 'DOC-${DateTime.now().millisecondsSinceEpoch}';
     final document = Document(
       id: docId,
@@ -82,7 +78,10 @@ class BlockchainService {
     final docSnapshot = await _docsCollection.doc(docId).get();
 
     if (!docSnapshot.exists) {
-      return {'verified': false, 'message': 'Document not found on blockchain record'};
+      return {
+        'verified': false,
+        'message': 'Document not found on blockchain record',
+      };
     }
 
     final data = docSnapshot.data() as Map<String, dynamic>;
@@ -111,7 +110,7 @@ class BlockchainService {
   static Future<List<Document>> getUserDocuments() async {
     final email = AuthService.getCurrentUserEmail();
     if (email == null) return [];
-    
+
     final querySnapshot = await _docsCollection
         .where('ownerEmail', isEqualTo: email)
         .orderBy('uploadDate', descending: true)
