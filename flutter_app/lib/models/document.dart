@@ -7,8 +7,7 @@ class Document {
   final String ownerEmail; // Owner email
   final DateTime uploadDate; // When document was uploaded
   final String originalHash; // SHA-256 hash of original document
-  final String encryptedDataHash; // SHA-256 hash of encrypted document
-  final String storageUrl; // URL of encrypted file in Firebase Storage
+  final String localPath; // Local path to the encrypted file
   final int blockNumber; // Blockchain block number
   final int fileSize; // File size in bytes
 
@@ -20,8 +19,7 @@ class Document {
     required this.ownerEmail,
     required this.uploadDate,
     required this.originalHash,
-    required this.encryptedDataHash,
-    required this.storageUrl,
+    required this.localPath,
     required this.blockNumber,
     required this.fileSize,
   });

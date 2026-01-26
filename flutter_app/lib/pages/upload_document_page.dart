@@ -1,13 +1,11 @@
-// ignore_for_file: deprecated_member_use
-
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import '../utils/helpers.dart';
 import '../services/encryption_service.dart';
-import '../services/storage_service.dart';
+import '../services/local_storage_service.dart';
 import '../services/blockchain_service.dart';
 
-/// Upload Document Page - Production Realistic Flow
+/// Upload Document Page - Local-First Architecture
 class UploadDocumentPage extends StatefulWidget {
   const UploadDocumentPage({super.key});
 
@@ -20,7 +18,6 @@ class _UploadDocumentPageState extends State<UploadDocumentPage> {
   PlatformFile? _selectedFile;
   String _statusMessage = "";
 
-  /// Pick file from device
   Future<void> _pickFile() async {
     try {
       FilePickerResult? result = await FilePicker.platform.pickFiles(
@@ -37,9 +34,9 @@ class _UploadDocumentPageState extends State<UploadDocumentPage> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Error picking file: $e')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error picking file: $e')),
+        );
       }
     }
   }
@@ -54,40 +51,34 @@ class _UploadDocumentPageState extends State<UploadDocumentPage> {
 
     setState(() {
       _isUploading = true;
-      _statusMessage = "Starting upload process...";
+      _statusMessage = "Starting local-first process...";
     });
 
     try {
       final originalBytes = _selectedFile!.bytes!;
-
-      // Step 1: Generate Original Hash
-      setState(() => _statusMessage = "Generating original hash...");
+      
+      // Step 1: Generate Original Hash (Authenticity Fingerprint)
+      setState(() => _statusMessage = "Generating SHA-256 hash...");
       final originalHash = EncryptionService.generateHash(originalBytes);
 
-      // Step 2: Encrypt File
+      // Step 2: Encrypt File Locally (Privacy)
       setState(() => _statusMessage = "Encrypting file (AES-256)...");
       final encryptedBytes = await EncryptionService.encryptData(originalBytes);
 
-      // Step 3: Generate Encrypted Hash
-      final encryptedHash = EncryptionService.generateHash(encryptedBytes);
-
-      // Step 4: Upload to Firebase Storage
-      setState(
-        () => _statusMessage = "Uploading encrypted file to Firebase...",
-      );
-      final storageUrl = await StorageService.uploadEncryptedFile(
+      // Step 3: Save Encrypted File to Device
+      setState(() => _statusMessage = "Saving secured file to device...");
+      final localPath = await LocalStorageService.saveEncryptedFile(
         fileName: _selectedFile!.name,
         encryptedData: encryptedBytes,
       );
 
-      // Step 5: Store on Blockchain
-      setState(() => _statusMessage = "Storing metadata on blockchain...");
+      // Step 4: Secure Metadata on Blockchain
+      setState(() => _statusMessage = "Registering proof on blockchain...");
       final doc = await BlockchainService.storeDocument(
         fileName: _selectedFile!.name,
         fileType: _selectedFile!.extension ?? 'unknown',
         originalHash: originalHash,
-        encryptedHash: encryptedHash,
-        storageUrl: storageUrl,
+        localPath: localPath,
         fileSize: originalBytes.length,
       );
 
@@ -99,47 +90,44 @@ class _UploadDocumentPageState extends State<UploadDocumentPage> {
         _statusMessage = "";
       });
 
-      _showSuccessDialog(doc.id);
+      _showSuccessDialog(doc.id, localPath);
     } catch (e) {
       setState(() {
         _isUploading = false;
-        _statusMessage = "Error occurred: $e";
+        _statusMessage = "Error: $e";
       });
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Upload error: $e')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: $e')),
+        );
       }
     }
   }
 
-  void _showSuccessDialog(String docId) {
+  void _showSuccessDialog(String docId, String path) {
     showDialog(
       context: context,
       builder: (_) => AlertDialog(
-        title: const Text('Production Upload Successful'),
+        title: const Text('Secured Locally'),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Center(
-              child: Icon(Icons.verified, color: Colors.green, size: 60),
-            ),
+            const Center(child: Icon(Icons.privacy_tip, color: Colors.green, size: 60)),
             const SizedBox(height: 15),
-            const Text('✔ Document encrypted locally'),
-            const Text('✔ Uploaded to secure storage'),
+            const Text('✔ Encrypted on device'),
+            const Text('✔ Saved to local storage'),
             const Text('✔ Hash stored on blockchain'),
             const Divider(),
-            Text(
-              'Document ID: $docId',
-              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
-            ),
+            Text('Document ID: $docId', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 11)),
+            const SizedBox(height: 5),
+            Text('Saved at: $path', style: const TextStyle(fontSize: 10, color: Colors.grey)),
           ],
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Great!'),
+            child: const Text('Done'),
           ),
         ],
       ),
@@ -153,36 +141,29 @@ class _UploadDocumentPageState extends State<UploadDocumentPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const Icon(Icons.security, size: 80, color: Colors.blue),
+          const Icon(Icons.home_max, size: 80, color: Colors.blue),
           const SizedBox(height: 20),
           const Text(
-            'Production Upload',
+            'Local-First Upload',
             textAlign: TextAlign.center,
             style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 10),
           const Text(
-            'AES-256 Encrypted & Blockchain Verified',
+            'Keep your files private. Only hashes go on blockchain.',
             textAlign: TextAlign.center,
-            style: TextStyle(color: Colors.grey, fontWeight: FontWeight.w500),
+            style: TextStyle(color: Colors.grey),
           ),
           const SizedBox(height: 40),
 
-          if (_selectedFile != null)
-            _buildFilePreview()
-          else
-            _buildFilePlaceholder(),
+          if (_selectedFile != null) _buildFilePreview() else _buildFilePlaceholder(),
 
           if (_statusMessage.isNotEmpty) ...[
             const SizedBox(height: 20),
             Text(
               _statusMessage,
               textAlign: TextAlign.center,
-              style: TextStyle(
-                color: Colors.blue[700],
-                fontSize: 12,
-                fontStyle: FontStyle.italic,
-              ),
+              style: TextStyle(color: Colors.blue[700], fontSize: 11),
             ),
           ],
 
@@ -190,43 +171,28 @@ class _UploadDocumentPageState extends State<UploadDocumentPage> {
 
           ElevatedButton.icon(
             onPressed: _isUploading ? null : _pickFile,
-            icon: const Icon(Icons.folder_open),
-            label: const Text('Select Document'),
+            icon: const Icon(Icons.file_upload),
+            label: const Text('Pick Document'),
             style: ElevatedButton.styleFrom(
               padding: const EdgeInsets.all(16),
               backgroundColor: Colors.grey[800],
               foregroundColor: Colors.white,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
             ),
           ),
           const SizedBox(height: 15),
 
           ElevatedButton.icon(
-            onPressed: (_isUploading || _selectedFile == null)
-                ? null
-                : _processUpload,
+            onPressed: (_isUploading || _selectedFile == null) ? null : _processUpload,
             icon: _isUploading
-                ? const SizedBox(
-                    width: 20,
-                    height: 20,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      color: Colors.white,
-                    ),
-                  )
-                : const Icon(Icons.cloud_done),
-            label: Text(
-              _isUploading ? 'Securing Document...' : 'Upload to Production',
-            ),
+                ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                : const Icon(Icons.lock),
+            label: Text(_isUploading ? 'Securing...' : 'Secure & Register'),
             style: ElevatedButton.styleFrom(
               padding: const EdgeInsets.all(16),
               backgroundColor: Colors.blue[700],
               foregroundColor: Colors.white,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
             ),
           ),
         ],
@@ -242,22 +208,11 @@ class _UploadDocumentPageState extends State<UploadDocumentPage> {
         padding: const EdgeInsets.all(20),
         child: Column(
           children: [
-            Icon(
-              Helpers.getFileIcon(_selectedFile!.extension ?? ''),
-              size: 60,
-              color: Colors.blue[700],
-            ),
+            Icon(Helpers.getFileIcon(_selectedFile!.extension ?? ''), size: 60, color: Colors.blue[700]),
             const SizedBox(height: 15),
-            Text(
-              _selectedFile!.name,
-              style: const TextStyle(fontWeight: FontWeight.bold),
-              textAlign: TextAlign.center,
-            ),
+            Text(_selectedFile!.name, style: const TextStyle(fontWeight: FontWeight.bold), textAlign: TextAlign.center),
             const SizedBox(height: 5),
-            Text(
-              Helpers.formatFileSize(_selectedFile!.size),
-              style: const TextStyle(color: Colors.grey),
-            ),
+            Text(Helpers.formatFileSize(_selectedFile!.size), style: const TextStyle(color: Colors.grey)),
           ],
         ),
       ),
@@ -269,18 +224,14 @@ class _UploadDocumentPageState extends State<UploadDocumentPage> {
       padding: const EdgeInsets.all(40),
       decoration: BoxDecoration(
         color: Colors.blue.withOpacity(0.05),
-        border: Border.all(
-          color: Colors.blue.withOpacity(0.3),
-          width: 2,
-          style: BorderStyle.solid,
-        ),
+        border: Border.all(color: Colors.blue.withOpacity(0.2), width: 2),
         borderRadius: BorderRadius.circular(20),
       ),
       child: const Column(
         children: [
-          Icon(Icons.file_present, size: 60, color: Colors.grey),
+          Icon(Icons.add_to_home_screen, size: 60, color: Colors.grey),
           SizedBox(height: 15),
-          Text('No file selected', style: TextStyle(color: Colors.grey)),
+          Text('Select a document to secure', style: TextStyle(color: Colors.grey)),
         ],
       ),
     );

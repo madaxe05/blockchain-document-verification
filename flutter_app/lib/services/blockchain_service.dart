@@ -15,8 +15,7 @@ class BlockchainService {
     required String fileName,
     required String fileType,
     required String originalHash,
-    required String encryptedHash,
-    required String storageUrl,
+    required String localPath,
     required int fileSize,
   }) async {
     // --- REAL BLOCKCHAIN LOGIC (Template) ---
@@ -49,8 +48,7 @@ class BlockchainService {
       ownerEmail: AuthService.getCurrentUserEmail() ?? 'unknown@email.com',
       uploadDate: DateTime.now(),
       originalHash: originalHash,
-      encryptedDataHash: encryptedHash,
-      storageUrl: storageUrl,
+      localPath: localPath,
       blockNumber: 1, // Simulated
       fileSize: fileSize,
     );
@@ -64,8 +62,7 @@ class BlockchainService {
       'ownerEmail': document.ownerEmail,
       'uploadDate': document.uploadDate.toIso8601String(),
       'originalHash': document.originalHash,
-      'encryptedHash': document.encryptedDataHash,
-      'storageUrl': document.storageUrl,
+      'localPath': document.localPath,
       'blockNumber': document.blockNumber,
       'fileSize': document.fileSize,
     });
@@ -93,8 +90,7 @@ class BlockchainService {
       ownerEmail: data['ownerEmail'],
       uploadDate: DateTime.parse(data['uploadDate']),
       originalHash: data['originalHash'],
-      encryptedDataHash: data['encryptedHash'],
-      storageUrl: data['storageUrl'],
+      localPath: data['localPath'],
       blockNumber: data['blockNumber'],
       fileSize: data['fileSize'],
     );
@@ -126,8 +122,7 @@ class BlockchainService {
         ownerEmail: data['ownerEmail'],
         uploadDate: DateTime.parse(data['uploadDate']),
         originalHash: data['originalHash'],
-        encryptedDataHash: data['encryptedHash'],
-        storageUrl: data['storageUrl'],
+        localPath: data['localPath'],
         blockNumber: data['blockNumber'],
         fileSize: data['fileSize'],
       );
