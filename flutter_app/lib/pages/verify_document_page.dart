@@ -3,9 +3,8 @@ import 'package:file_picker/file_picker.dart';
 import '../services/blockchain_service.dart';
 import '../services/encryption_service.dart';
 import '../models/document.dart';
-import '../utils/helpers.dart';
 
-/// Verify Document Page - Local-First
+/// Verify Document Page - Local-First with Hash Search
 class VerifyDocumentPage extends StatefulWidget {
   const VerifyDocumentPage({super.key});
 
@@ -45,10 +44,6 @@ class _VerifyDocumentPageState extends State<VerifyDocumentPage> {
   }
 
   Future<void> _verifyDocument() async {
-    if (_docIdController.text.trim().isEmpty) {
-      _showSnackBar('Please enter Document ID');
-      return;
-    }
     if (_fileToVerify == null || _fileToVerify!.bytes == null) {
       _showSnackBar('Please select the document file to verify');
       return;
@@ -60,33 +55,42 @@ class _VerifyDocumentPageState extends State<VerifyDocumentPage> {
     });
 
     try {
-      // 1. Get Metadata from Blockchain
-      final chainResult = await BlockchainService.verifyDocument(_docIdController.text.trim());
-      
-      if (!chainResult['verified']) {
-        setState(() {
-          _isVerifying = false;
-          _verificationResult = chainResult;
-        });
-        return;
+      // Step 1: Generate Hash of provided file
+      final providedHash = EncryptionService.generateHash(_fileToVerify!.bytes!);
+      Document? document;
+
+      // Step 2: Determine lookup method
+      final idInput = _docIdController.text.trim();
+      if (idInput.isNotEmpty) {
+        // Method A: Lookup by ID and compare hash
+        final chainResult = await BlockchainService.verifyDocument(idInput);
+        if (chainResult['verified']) {
+          document = chainResult['document'] as Document;
+        }
+      } else {
+        // Method B: Search for any document matching this hash
+        document = await BlockchainService.findByHash(providedHash);
       }
 
-      final document = chainResult['document'] as Document;
+      // Step 3: Final Result Construction
+      bool isAuthentic = false;
+      String message = "";
 
-      // 2. Generate Hash of provided file
-      final providedHash = EncryptionService.generateHash(_fileToVerify!.bytes!);
-
-      // 3. Compare with Blockchain Hash
-      final isAuthentic = providedHash == document.originalHash;
+      if (document != null) {
+        isAuthentic = providedHash == document.originalHash;
+        message = isAuthentic 
+            ? 'Document is AUTHENTIC! Record found on blockchain.' 
+            : 'VERIFICATION FAILED! Record found but hash mismatch.';
+      } else {
+        message = 'NO RECORD FOUND! This document is not registered on the blockchain.';
+      }
 
       setState(() {
         _isVerifying = false;
         _verificationResult = {
           'verified': isAuthentic,
           'document': document,
-          'message': isAuthentic 
-              ? 'Document is AUTHENTIC! Hashes match with blockchain record.' 
-              : 'VERIFICATION FAILED! Document has been tampered with or is incorrect.',
+          'message': message,
         };
       });
     } catch (e) {
@@ -110,37 +114,52 @@ class _VerifyDocumentPageState extends State<VerifyDocumentPage> {
           const Icon(Icons.verified, size: 80, color: Colors.blue),
           const SizedBox(height: 20),
           const Text(
-            'Instant Verification',
+            'Blockchain Verification',
             textAlign: TextAlign.center,
             style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 10),
           const Text(
-            'Upload a document to verify its authenticity against blockchain.',
+            'Pick a file to verify. You can optionally enter the ID if you have it.',
             textAlign: TextAlign.center,
             style: TextStyle(color: Colors.grey),
           ),
           const SizedBox(height: 40),
 
-          // ID Input
+          // File Picker for verification
+          Container(
+            decoration: BoxDecoration(
+              border: Border.all(color: _fileToVerify != null ? Colors.blue : Colors.grey[300]!, width: 2),
+              borderRadius: BorderRadius.circular(15),
+            ),
+            child: InkWell(
+              onTap: _pickFileToVerify,
+              child: Padding(
+                padding: const EdgeInsets.all(20),
+                child: Column(
+                  children: [
+                    Icon(_fileToVerify != null ? Icons.file_present : Icons.add_circle_outline, 
+                      size: 40, color: _fileToVerify != null ? Colors.blue : Colors.grey),
+                    const SizedBox(height: 10),
+                    Text(
+                      _fileToVerify != null ? _fileToVerify!.name : 'Select Document to Verify',
+                      style: TextStyle(fontWeight: FontWeight.bold, color: _fileToVerify != null ? Colors.black : Colors.grey),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 20),
+
+          // Optional ID Input
           TextField(
             controller: _docIdController,
             decoration: const InputDecoration(
-              labelText: 'Enter Document ID',
+              labelText: 'Document ID (Optional)',
+              hintText: 'Enter if you want specific ID verification',
               prefixIcon: Icon(Icons.fingerprint),
               border: OutlineInputBorder(),
-            ),
-          ),
-          const SizedBox(height: 15),
-
-          // File Picker for verification
-          OutlinedButton.icon(
-            onPressed: _pickFileToVerify,
-            icon: const Icon(Icons.attach_file),
-            label: Text(_fileToVerify != null ? 'File: ${_fileToVerify!.name}' : 'Select Document File'),
-            style: OutlinedButton.styleFrom(
-              padding: const EdgeInsets.all(16),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
             ),
           ),
           const SizedBox(height: 20),
@@ -149,21 +168,21 @@ class _VerifyDocumentPageState extends State<VerifyDocumentPage> {
           ElevatedButton.icon(
             onPressed: (_isVerifying || _fileToVerify == null) ? null : _verifyDocument,
             icon: _isVerifying 
-              ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
-              : const Icon(Icons.check_circle_outline),
-            label: Text(_isVerifying ? 'Checking Blockchain...' : 'Verify Authenticity'),
+              ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+              : const Icon(Icons.check_circle),
+            label: Text(_isVerifying ? 'Verifying...' : 'Verify Authenticity'),
             style: ElevatedButton.styleFrom(
               padding: const EdgeInsets.all(16),
               backgroundColor: Colors.blue[700],
               foregroundColor: Colors.white,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
             ),
           ),
 
           const SizedBox(height: 30),
 
           if (_verificationResult != null) _buildResult()
-          else if (!_isVerifying) const Center(child: Text('Provide ID and File to verify', style: TextStyle(color: Colors.grey))),
+          else if (!_isVerifying) const Center(child: Text('Pick a file to start', style: TextStyle(color: Colors.grey))),
         ],
       ),
     );
@@ -181,10 +200,10 @@ class _VerifyDocumentPageState extends State<VerifyDocumentPage> {
         padding: const EdgeInsets.all(24),
         child: Column(
           children: [
-            Icon(success ? Icons.verified : Icons.error, size: 60, color: success ? Colors.green : Colors.red),
+            Icon(success ? Icons.verified : Icons.error_outline, size: 60, color: success ? Colors.green : Colors.red),
             const SizedBox(height: 15),
             Text(
-              success ? 'VERIFIED' : 'FAILED',
+              success ? 'VERIFIED' : 'NOT VERIFIED',
               style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: success ? Colors.green[700] : Colors.red[700]),
             ),
             const SizedBox(height: 10),
@@ -194,9 +213,9 @@ class _VerifyDocumentPageState extends State<VerifyDocumentPage> {
               const Divider(height: 30),
               _row('Document Name', doc.name),
               _row('Owner', doc.owner),
-              _row('Block No', doc.blockNumber.toString()),
+              _row('ID', doc.id),
               const SizedBox(height: 10),
-              const Text('Blockchain Hash Record:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+              const Text('Verified Hash Record:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
               SelectableText(doc.originalHash, style: const TextStyle(fontSize: 10, fontFamily: 'monospace', color: Colors.blue)),
             ],
           ],
@@ -212,7 +231,7 @@ class _VerifyDocumentPageState extends State<VerifyDocumentPage> {
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           Text('$label:', style: const TextStyle(fontWeight: FontWeight.bold)),
-          Flexible(child: Text(value, textAlign: TextAlign.right)),
+          Flexible(child: Text(value, textAlign: TextAlign.right, style: const TextStyle(fontSize: 12))),
         ],
       ),
     );

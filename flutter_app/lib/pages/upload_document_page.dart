@@ -1,11 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:share_plus/share_plus.dart';
 import '../utils/helpers.dart';
 import '../services/encryption_service.dart';
 import '../services/local_storage_service.dart';
 import '../services/blockchain_service.dart';
 
-/// Upload Document Page - Local-First Architecture
+/// Upload Document Page - Local-First Architecture (Fixes Loop & Adds Share)
 class UploadDocumentPage extends StatefulWidget {
   const UploadDocumentPage({super.key});
 
@@ -58,22 +59,22 @@ class _UploadDocumentPageState extends State<UploadDocumentPage> {
       final originalBytes = _selectedFile!.bytes!;
       
       // Step 1: Generate Original Hash (Authenticity Fingerprint)
-      setState(() => _statusMessage = "Generating SHA-256 hash...");
+      if (mounted) setState(() => _statusMessage = "Generating SHA-256 hash...");
       final originalHash = EncryptionService.generateHash(originalBytes);
 
       // Step 2: Encrypt File Locally (Privacy)
-      setState(() => _statusMessage = "Encrypting file (AES-256)...");
+      if (mounted) setState(() => _statusMessage = "Encrypting file (AES-256)...");
       final encryptedBytes = await EncryptionService.encryptData(originalBytes);
 
       // Step 3: Save Encrypted File to Device
-      setState(() => _statusMessage = "Saving secured file to device...");
+      if (mounted) setState(() => _statusMessage = "Saving secured file to device...");
       final localPath = await LocalStorageService.saveEncryptedFile(
         fileName: _selectedFile!.name,
         encryptedData: encryptedBytes,
       );
 
       // Step 4: Secure Metadata on Blockchain
-      setState(() => _statusMessage = "Registering proof on blockchain...");
+      if (mounted) setState(() => _statusMessage = "Registering proof on blockchain...");
       final doc = await BlockchainService.storeDocument(
         fileName: _selectedFile!.name,
         fileType: _selectedFile!.extension ?? 'unknown',
@@ -92,11 +93,11 @@ class _UploadDocumentPageState extends State<UploadDocumentPage> {
 
       _showSuccessDialog(doc.id, localPath);
     } catch (e) {
-      setState(() {
-        _isUploading = false;
-        _statusMessage = "Error: $e";
-      });
       if (mounted) {
+        setState(() {
+          _isUploading = false;
+          _statusMessage = "Error: $e";
+        });
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Error: $e')),
         );
@@ -107,27 +108,32 @@ class _UploadDocumentPageState extends State<UploadDocumentPage> {
   void _showSuccessDialog(String docId, String path) {
     showDialog(
       context: context,
+      barrierDismissible: false,
       builder: (_) => AlertDialog(
-        title: const Text('Secured Locally'),
+        title: const Text('Secured Successfully! ✅'),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Center(child: Icon(Icons.privacy_tip, color: Colors.green, size: 60)),
+            const Center(child: Icon(Icons.verified_user, color: Colors.green, size: 60)),
+            const SizedBox(height: 20),
+            const Text('Document ID:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+            SelectableText(docId, style: const TextStyle(fontSize: 14, color: Colors.blue, fontWeight: FontWeight.bold)),
             const SizedBox(height: 15),
-            const Text('✔ Encrypted on device'),
-            const Text('✔ Saved to local storage'),
-            const Text('✔ Hash stored on blockchain'),
+            const Text('✔ Encrypted and saved locally'),
+            const Text('✔ Proof stored on blockchain'),
             const Divider(),
-            Text('Document ID: $docId', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 11)),
-            const SizedBox(height: 5),
-            Text('Saved at: $path', style: const TextStyle(fontSize: 10, color: Colors.grey)),
+            const Text('Share this ID for verification:', style: TextStyle(fontSize: 10, color: Colors.grey)),
           ],
         ),
         actions: [
+          IconButton(
+            onPressed: () => Share.share("Verify my document on Blockchain. ID: $docId"),
+            icon: const Icon(Icons.share, color: Colors.blue),
+          ),
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Done'),
+            child: const Text('Dismiss'),
           ),
         ],
       ),
@@ -141,7 +147,7 @@ class _UploadDocumentPageState extends State<UploadDocumentPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const Icon(Icons.home_max, size: 80, color: Colors.blue),
+          const Icon(Icons.shield, size: 80, color: Colors.blue),
           const SizedBox(height: 20),
           const Text(
             'Local-First Upload',
@@ -150,7 +156,7 @@ class _UploadDocumentPageState extends State<UploadDocumentPage> {
           ),
           const SizedBox(height: 10),
           const Text(
-            'Keep your files private. Only hashes go on blockchain.',
+            'Secure your files locally and store proofs on blockchain.',
             textAlign: TextAlign.center,
             style: TextStyle(color: Colors.grey),
           ),
@@ -163,7 +169,7 @@ class _UploadDocumentPageState extends State<UploadDocumentPage> {
             Text(
               _statusMessage,
               textAlign: TextAlign.center,
-              style: TextStyle(color: Colors.blue[700], fontSize: 11),
+              style: TextStyle(color: Colors.blue[700], fontSize: 12, fontWeight: FontWeight.w500),
             ),
           ],
 
@@ -171,8 +177,8 @@ class _UploadDocumentPageState extends State<UploadDocumentPage> {
 
           ElevatedButton.icon(
             onPressed: _isUploading ? null : _pickFile,
-            icon: const Icon(Icons.file_upload),
-            label: const Text('Pick Document'),
+            icon: const Icon(Icons.file_open),
+            label: const Text('Step 1: Pick Document'),
             style: ElevatedButton.styleFrom(
               padding: const EdgeInsets.all(16),
               backgroundColor: Colors.grey[800],
@@ -186,8 +192,8 @@ class _UploadDocumentPageState extends State<UploadDocumentPage> {
             onPressed: (_isUploading || _selectedFile == null) ? null : _processUpload,
             icon: _isUploading
                 ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                : const Icon(Icons.lock),
-            label: Text(_isUploading ? 'Securing...' : 'Secure & Register'),
+                : const Icon(Icons.lock_person),
+            label: Text(_isUploading ? 'Securing...' : 'Step 2: Encrypt & Register'),
             style: ElevatedButton.styleFrom(
               padding: const EdgeInsets.all(16),
               backgroundColor: Colors.blue[700],
@@ -224,14 +230,14 @@ class _UploadDocumentPageState extends State<UploadDocumentPage> {
       padding: const EdgeInsets.all(40),
       decoration: BoxDecoration(
         color: Colors.blue.withOpacity(0.05),
-        border: Border.all(color: Colors.blue.withOpacity(0.2), width: 2),
+        border: Border.all(color: Colors.blue.withOpacity(0.2), width: 2, style: BorderStyle.dashed),
         borderRadius: BorderRadius.circular(20),
       ),
       child: const Column(
         children: [
-          Icon(Icons.add_to_home_screen, size: 60, color: Colors.grey),
+          Icon(Icons.upload_file, size: 60, color: Colors.grey),
           SizedBox(height: 15),
-          Text('Select a document to secure', style: TextStyle(color: Colors.grey)),
+          Text('No document selected', style: TextStyle(color: Colors.grey)),
         ],
       ),
     );

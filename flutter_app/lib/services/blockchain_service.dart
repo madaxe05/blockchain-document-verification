@@ -128,4 +128,28 @@ class BlockchainService {
       );
     }).toList();
   }
+
+  /// Find document by originalHash (for ID-less verification)
+  static Future<Document?> findByHash(String originalHash) async {
+    final query = await _docsCollection
+        .where('originalHash', isEqualTo: originalHash)
+        .limit(1)
+        .get();
+
+    if (query.docs.isEmpty) return null;
+
+    final data = query.docs.first.data() as Map<String, dynamic>;
+    return Document(
+      id: data['id'],
+      name: data['name'],
+      type: data['type'],
+      owner: data['owner'],
+      ownerEmail: data['ownerEmail'],
+      uploadDate: DateTime.parse(data['uploadDate']),
+      originalHash: data['originalHash'],
+      localPath: data['localPath'],
+      blockNumber: data['blockNumber'],
+      fileSize: data['fileSize'],
+    );
+  }
 }

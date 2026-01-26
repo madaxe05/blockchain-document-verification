@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:qr_flutter/qr_flutter.dart';
+import 'package:share_plus/share_plus.dart';
 import 'dart:io';
 import 'package:path_provider/path_provider.dart';
 import 'package:open_file/open_file.dart';
@@ -10,7 +11,7 @@ import '../services/encryption_service.dart';
 import '../models/document.dart';
 import '../utils/helpers.dart';
 
-/// Dashboard Page - Local-First Architecture
+/// Dashboard Page - Local-First with Sharing
 class DashboardPage extends StatefulWidget {
   const DashboardPage({super.key});
 
@@ -37,23 +38,18 @@ class _DashboardPageState extends State<DashboardPage> {
   Future<void> _openDocument(Document doc) async {
     setState(() => _isProcessing = true);
     try {
-      // 1. Read encrypted file from local device storage
       final encryptedBytes = await LocalStorageService.readFile(doc.localPath);
-      
-      // 2. Decrypt locally
       final decryptedBytes = await EncryptionService.decryptData(encryptedBytes);
 
-      // 3. Save to a temporary file to open with System viewer
       final tempDir = await getTemporaryDirectory();
       final tempFile = File('${tempDir.path}/${doc.name}');
       await tempFile.writeAsBytes(decryptedBytes);
 
-      // 4. Open file
       await OpenFile.open(tempFile.path);
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error opening local document: $e'), backgroundColor: Colors.red),
+          SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
         );
       }
     } finally {
@@ -68,7 +64,7 @@ class _DashboardPageState extends State<DashboardPage> {
         gradient: LinearGradient(
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
-          colors: [Colors.blue[800]!, Colors.blue[50]!],
+          colors: [Colors.blue[900]!, Colors.blue[50]!],
         ),
       ),
       child: Column(
@@ -119,7 +115,7 @@ class _DashboardPageState extends State<DashboardPage> {
             backgroundColor: Colors.white,
             child: Text(
               (AuthService.getCurrentUser() ?? "U")[0].toUpperCase(),
-              style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: Colors.blue[800]),
+              style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: Colors.blue[900]),
             ),
           ),
           const SizedBox(height: 12),
@@ -136,8 +132,8 @@ class _DashboardPageState extends State<DashboardPage> {
               return Row(
                 mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                 children: [
-                   _statTile('Secured', count.toString(), Icons.lock_outline),
-                   _statTile('On-Chain', count.toString(), Icons.link),
+                   _statTile('Files', count.toString(), Icons.folder_shared),
+                   _statTile('Verified', count.toString(), Icons.security),
                 ],
               );
             },
@@ -151,12 +147,12 @@ class _DashboardPageState extends State<DashboardPage> {
     return Container(
       width: 140,
       padding: const EdgeInsets.all(15),
-      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(15)),
+      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(15), boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 5)]),
       child: Column(
         children: [
-          Icon(icon, size: 20, color: Colors.blue[800]),
+          Icon(icon, size: 20, color: Colors.blue[900]),
           const SizedBox(height: 5),
-          Text(value, style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.blue[800])),
+          Text(value, style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.blue[900])),
           Text(label, style: const TextStyle(color: Colors.grey, fontSize: 10)),
         ],
       ),
@@ -167,7 +163,7 @@ class _DashboardPageState extends State<DashboardPage> {
     return RefreshIndicator(
       onRefresh: () async => _refreshDocuments(),
       child: ListView.builder(
-        padding: const EdgeInsets.fromLTRB(20, 20, 20, 10),
+        padding: const EdgeInsets.all(20),
         itemCount: documents.length,
         itemBuilder: (context, index) => _docCard(documents[index]),
       ),
@@ -177,19 +173,15 @@ class _DashboardPageState extends State<DashboardPage> {
   Widget _docCard(Document doc) {
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
-      elevation: 1,
+      elevation: 2,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
       child: ListTile(
         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        leading: Container(
-          padding: const EdgeInsets.all(10),
-          decoration: BoxDecoration(color: Colors.blue[50], shape: BoxShape.circle),
-          child: Icon(Helpers.getFileIcon(doc.type), color: Colors.blue[800]),
-        ),
+        leading: Icon(Helpers.getFileIcon(doc.type), color: Colors.blue[900], size: 30),
         title: Text(doc.name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
         subtitle: Text('${Helpers.formatFileSize(doc.fileSize)} • ${Helpers.formatDate(doc.uploadDate)}', style: const TextStyle(fontSize: 11)),
         trailing: IconButton(
-          icon: const Icon(Icons.qr_code_scanner, size: 20, color: Colors.grey),
+          icon: const Icon(Icons.qr_code_2, color: Colors.blue),
           onPressed: () => _showQR(doc),
         ),
         onTap: () => _details(doc),
@@ -201,16 +193,22 @@ class _DashboardPageState extends State<DashboardPage> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Local-First Key'),
+        title: const Text('Share Verification QR'),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            QrImageView(data: doc.id, size: 160),
-            const SizedBox(height: 10),
-            Text('ID: ${doc.id}', style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold)),
+            QrImageView(data: doc.id, size: 180),
+            const SizedBox(height: 15),
+            Text('Document ID: ${doc.id}', style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold)),
           ],
         ),
-        actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('Close'))],
+        actions: [
+          IconButton(
+            onPressed: () => Share.share("Verify my document on Blockchain. ID: ${doc.id}"),
+            icon: const Icon(Icons.share, color: Colors.blue),
+          ),
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Close')),
+        ],
       ),
     );
   }
@@ -223,34 +221,33 @@ class _DashboardPageState extends State<DashboardPage> {
         padding: const EdgeInsets.all(24),
         child: Column(
           mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Text(doc.name, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+            Text(doc.name, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold), textAlign: TextAlign.center),
             const SizedBox(height: 20),
-            _infoRow('Verified On', Helpers.formatDate(doc.uploadDate)),
-            _infoRow('Storage', 'Local Encryption'),
-            _infoRow('Status', 'Immutable Ledger Linked'),
-            const Divider(height: 30),
-            Text('Original SHA-256:', style: TextStyle(color: Colors.grey[600], fontSize: 11, fontWeight: FontWeight.bold)),
-            const SizedBox(height: 4),
-            SelectableText(doc.originalHash, style: const TextStyle(fontSize: 10, fontFamily: 'monospace', color: Colors.blue)),
+            _infoLine('ID', doc.id),
+            _infoLine('Original Hash', doc.originalHash.substring(0, 20) + "..."),
+            _infoLine('Status', 'Immutable proof on-chain'),
             const SizedBox(height: 30),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton.icon(
-                onPressed: () {
-                  Navigator.pop(context);
-                  _openDocument(doc);
-                },
-                icon: const Icon(Icons.lock_open),
-                label: const Text('Decrypt & View Locally'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.blue[800],
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.all(16),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                ),
+            ElevatedButton.icon(
+              onPressed: () {
+                Navigator.pop(context);
+                _openDocument(doc);
+              },
+              icon: const Icon(Icons.file_open),
+              label: const Text('Decrypt & View Document'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.blue[900],
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.all(16),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
               ),
+            ),
+            const SizedBox(height: 10),
+            TextButton.icon(
+              onPressed: () => Share.share("Blockchain Proof for ${doc.name}\nID: ${doc.id}\nHash: ${doc.originalHash}"),
+              icon: const Icon(Icons.share),
+              label: const Text('Share Proof Metadata'),
             ),
           ],
         ),
@@ -258,7 +255,7 @@ class _DashboardPageState extends State<DashboardPage> {
     );
   }
 
-  Widget _infoRow(String label, String value) {
+  Widget _infoLine(String label, String value) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: Row(
@@ -276,9 +273,9 @@ class _DashboardPageState extends State<DashboardPage> {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          const Icon(Icons.cloud_off, size: 60, color: Colors.grey),
+          const Icon(Icons.folder_off, size: 60, color: Colors.grey),
           const SizedBox(height: 16),
-          const Text('No documents secured locally yet', style: TextStyle(color: Colors.grey)),
+          const Text('No documents found', style: TextStyle(color: Colors.grey)),
         ],
       ),
     );
