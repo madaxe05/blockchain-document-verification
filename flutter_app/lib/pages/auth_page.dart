@@ -1,9 +1,7 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import '../services/auth_service.dart';
 import 'home_page.dart';
 
-/// Authentication Page - Login and Registration
 class AuthPage extends StatefulWidget {
   const AuthPage({super.key});
 
@@ -15,76 +13,57 @@ class _AuthPageState extends State<AuthPage> {
   bool _isLogin = true;
   bool _isLoading = false;
 
-  final _nameController = TextEditingController();
-  final _emailController = TextEditingController();
+  final _usernameController = TextEditingController();
   final _passwordController = TextEditingController();
 
   @override
-  void initState() {
-    super.initState();
-    _checkLoginStatus();
-  }
-
-  /// Check if user is already logged in
-  Future<void> _checkLoginStatus() async {
-    try {
-      final isLoggedIn = await AuthService.isLoggedIn();
-      if (isLoggedIn && mounted) {
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (context) => const HomePage()),
-        );
-      }
-    } catch (e) {
-      if (kDebugMode) {
-        print('Auth Check Error: $e');
-      }
-    }
-  }
-
-  @override
   void dispose() {
-    _nameController.dispose();
-    _emailController.dispose();
+    _usernameController.dispose();
     _passwordController.dispose();
     super.dispose();
   }
 
-  /// Handle login or registration
   Future<void> _handleAuth() async {
+    final username = _usernameController.text.trim();
+    final password = _passwordController.text.trim();
+
+    if (username.isEmpty || password.isEmpty) {
+      _showSnackBar('Please fill in all fields');
+      return;
+    }
+
     setState(() => _isLoading = true);
 
     bool success;
     if (_isLogin) {
-      success = await AuthService.login(
-        _emailController.text.trim(),
-        _passwordController.text.trim(),
-      );
+      success = await AuthService.login(username, password);
     } else {
-      success = await AuthService.register(
-        _nameController.text.trim(),
-        _emailController.text.trim(),
-        _passwordController.text.trim(),
-      );
+      success = await AuthService.register(username, password);
+      if (success) {
+        _isLogin = true;
+        _showSnackBar('Registration successful! Please login.', isError: false);
+      }
     }
 
     setState(() => _isLoading = false);
 
-    if (success && mounted) {
+    if (success && _isLogin && mounted) {
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(builder: (context) => const HomePage()),
       );
-    } else {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(_isLogin ? 'Login failed' : 'Registration failed'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
+    } else if (!success && mounted) {
+      _showSnackBar(_isLogin ? 'Login failed: Invalid credentials' : 'Registration failed: User may already exist');
     }
+  }
+
+  void _showSnackBar(String message, {bool isError = true}) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: isError ? Colors.red : Colors.green,
+      ),
+    );
   }
 
   @override
@@ -95,7 +74,7 @@ class _AuthPageState extends State<AuthPage> {
           gradient: LinearGradient(
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
-            colors: [Colors.blue[700]!, Colors.blue[900]!],
+            colors: [Colors.blue[900]!, Colors.blue[700]!],
           ),
         ),
         child: SafeArea(
@@ -103,104 +82,65 @@ class _AuthPageState extends State<AuthPage> {
             child: SingleChildScrollView(
               padding: const EdgeInsets.all(24),
               child: Card(
-                elevation: 8,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(20),
-                ),
+                elevation: 10,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(25)),
                 child: Padding(
                   padding: const EdgeInsets.all(32),
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      const Icon(Icons.shield, size: 80, color: Colors.blue),
+                      const Icon(Icons.lock_person, size: 70, color: Colors.blue),
                       const SizedBox(height: 20),
                       Text(
-                        'Blockchain Document\nVerification',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          fontSize: 24,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.blue[700],
-                        ),
+                        _isLogin ? 'Welcome Back' : 'Create Local Account',
+                        style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+                      ),
+                      const Text(
+                        'Secure local-only authentication',
+                        style: TextStyle(color: Colors.grey, fontSize: 12),
                       ),
                       const SizedBox(height: 30),
 
-                      // Show name field only for registration
-                      if (!_isLogin)
-                        TextField(
-                          controller: _nameController,
-                          decoration: const InputDecoration(
-                            labelText: 'Full Name',
-                            prefixIcon: Icon(Icons.person),
-                            border: OutlineInputBorder(),
-                          ),
-                        ),
-                      if (!_isLogin) const SizedBox(height: 16),
-
-                      // Email field
                       TextField(
-                        controller: _emailController,
+                        controller: _usernameController,
                         decoration: const InputDecoration(
-                          labelText: 'Email',
-                          prefixIcon: Icon(Icons.email),
-                          border: OutlineInputBorder(),
+                          labelText: 'Username',
+                          prefixIcon: Icon(Icons.person_outline),
+                          border: OutlineInputBorder(borderRadius: BorderRadius.all(Radius.circular(12))),
                         ),
-                        keyboardType: TextInputType.emailAddress,
                       ),
                       const SizedBox(height: 16),
 
-                      // Password field
                       TextField(
                         controller: _passwordController,
                         decoration: const InputDecoration(
                           labelText: 'Password',
-                          prefixIcon: Icon(Icons.lock),
-                          border: OutlineInputBorder(),
+                          prefixIcon: Icon(Icons.password_outlined),
+                          border: OutlineInputBorder(borderRadius: BorderRadius.all(Radius.circular(12))),
                         ),
                         obscureText: true,
                       ),
                       const SizedBox(height: 24),
 
-                      // Login/Register button
                       SizedBox(
                         width: double.infinity,
+                        height: 50,
                         child: ElevatedButton(
                           onPressed: _isLoading ? null : _handleAuth,
                           style: ElevatedButton.styleFrom(
-                            padding: const EdgeInsets.all(16),
-                            backgroundColor: Colors.blue[700],
+                            backgroundColor: Colors.blue[900],
                             foregroundColor: Colors.white,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(10),
-                            ),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                           ),
-                          child: _isLoading
-                              ? const SizedBox(
-                                  height: 20,
-                                  width: 20,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                    color: Colors.white,
-                                  ),
-                                )
-                              : Text(
-                                  _isLogin ? 'Login' : 'Register',
-                                  style: const TextStyle(fontSize: 16),
-                                ),
+                          child: _isLoading 
+                              ? const CircularProgressIndicator(color: Colors.white) 
+                              : Text(_isLogin ? 'Login' : 'Register'),
                         ),
                       ),
-                      const SizedBox(height: 16),
-
-                      // Toggle between login and register
+                      
                       TextButton(
-                        onPressed: () {
-                          setState(() => _isLogin = !_isLogin);
-                        },
-                        child: Text(
-                          _isLogin
-                              ? 'Don\'t have an account? Register'
-                              : 'Already have an account? Login',
-                        ),
+                        onPressed: () => setState(() => _isLogin = !_isLogin),
+                        child: Text(_isLogin ? 'New user? Register locally' : 'Already have an account? Login'),
                       ),
                     ],
                   ),

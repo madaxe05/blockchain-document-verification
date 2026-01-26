@@ -1,30 +1,39 @@
-// This is a basic Flutter widget test.
-//
-// To perform an interaction with a widget in your test, use the WidgetTester
-// utility in the flutter_test package. For example, you can send tap and scroll
-// gestures. You can also use WidgetTester to find child widgets in the widget
-// tree, read text, and verify that the values of widget properties are correct.
-
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:flutter_app/main.dart';
 
 void main() {
-  testWidgets('Counter increments smoke test', (WidgetTester tester) async {
-    // Build our app and trigger a frame.
-    await tester.pumpWidget(const BlockchainDocumentApp());
+  group('BlockchainDocumentApp Widget Tests', () {
+    testWidgets('Shows Login screen when user is NOT logged in', (
+      WidgetTester tester,
+    ) async {
+      // Arrange
+      await tester.pumpWidget(const BlockchainDocumentApp(isLoggedIn: false));
 
-    // Verify that our counter starts at 0.
-    expect(find.text('0'), findsOneWidget);
-    expect(find.text('1'), findsNothing);
+      // Let all widgets settle
+      await tester.pumpAndSettle();
 
-    // Tap the '+' icon and trigger a frame.
-    await tester.tap(find.byIcon(Icons.add));
-    await tester.pump();
+      // Assert
+      expect(find.text('Welcome Back'), findsOneWidget);
+      expect(find.text('Login'), findsOneWidget);
 
-    // Verify that our counter has incremented.
-    expect(find.text('0'), findsNothing);
-    expect(find.text('1'), findsOneWidget);
+      // Ensure home content is NOT visible
+      expect(find.text('Local Blockchain Vault'), findsNothing);
+    });
+
+    testWidgets('Shows Home screen when user IS logged in', (
+      WidgetTester tester,
+    ) async {
+      // Arrange
+      await tester.pumpWidget(const BlockchainDocumentApp(isLoggedIn: true));
+
+      await tester.pumpAndSettle();
+
+      // Assert
+      expect(find.text('Local Blockchain Vault'), findsOneWidget);
+
+      // Login UI should not be visible
+      expect(find.text('Welcome Back'), findsNothing);
+    });
   });
 }

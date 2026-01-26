@@ -4,7 +4,7 @@ class Document {
   final String name; // Document file name
   final String type; // File type/extension
   final String owner; // Owner name
-  final String ownerEmail; // Owner email
+  final String ownerAddress; // Owner blockchain address
   final DateTime uploadDate; // When document was uploaded
   final String originalHash; // SHA-256 hash of original document
   final String localPath; // Local path to the encrypted file
@@ -16,7 +16,7 @@ class Document {
     required this.name,
     required this.type,
     required this.owner,
-    required this.ownerEmail,
+    required this.ownerAddress,
     required this.uploadDate,
     required this.originalHash,
     required this.localPath,

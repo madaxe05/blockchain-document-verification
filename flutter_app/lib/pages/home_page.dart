@@ -5,7 +5,6 @@ import 'dashboard_page.dart';
 import 'upload_document_page.dart';
 import 'verify_document_page.dart';
 
-/// Home Page - Main navigation container
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
 
@@ -16,7 +15,6 @@ class HomePage extends StatefulWidget {
 class _HomePageState extends State<HomePage> {
   int _selectedIndex = 0;
 
-  // List of pages for bottom navigation
   final List<Widget> _pages = [
     const DashboardPage(),
     const UploadDocumentPage(),
@@ -27,73 +25,76 @@ class _HomePageState extends State<HomePage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Document Verification'),
-        backgroundColor: Colors.blue[700],
-        foregroundColor: Colors.white,
+        title: const Text('Local Blockchain Vault'),
+        centerTitle: true,
         actions: [
-          // User account icon
           IconButton(
-            icon: const Icon(Icons.person),
-            onPressed: () {
-              _showAccountDialog(context);
-            },
+            icon: const Icon(Icons.account_circle_outlined),
+            onPressed: () => _showAccountDialog(context),
           ),
         ],
       ),
       body: _pages[_selectedIndex],
       bottomNavigationBar: NavigationBar(
         selectedIndex: _selectedIndex,
-        onDestinationSelected: (index) {
-          setState(() => _selectedIndex = index);
-        },
+        onDestinationSelected: (idx) => setState(() => _selectedIndex = idx),
         destinations: const [
-          NavigationDestination(
-            icon: Icon(Icons.dashboard),
-            label: 'Dashboard',
-          ),
-          NavigationDestination(icon: Icon(Icons.upload_file), label: 'Upload'),
-          NavigationDestination(icon: Icon(Icons.verified), label: 'Verify'),
+          NavigationDestination(icon: Icon(Icons.grid_view), label: 'Vault'),
+          NavigationDestination(icon: Icon(Icons.add_moderator), label: 'Secure'),
+          NavigationDestination(icon: Icon(Icons.verified_user_outlined), label: 'Verify'),
         ],
       ),
     );
   }
 
-  /// Show account dialog with user info and logout option
   void _showAccountDialog(BuildContext context) {
     showDialog(
       context: context,
-      builder:
-          (context) => AlertDialog(
-            title: const Text('Account'),
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('Name: ${AuthService.getCurrentUser() ?? "User"}'),
-                const SizedBox(height: 8),
-                Text('Email: ${AuthService.getCurrentUserEmail() ?? "No Email"}'),
-              ],
-            ),
-            actions: [
-              TextButton(
-                onPressed: () async {
-                  await AuthService.logout();
-                  if (context.mounted) {
-                    Navigator.pushAndRemoveUntil(
-                      context,
-                      MaterialPageRoute(builder: (context) => const AuthPage()),
-                      (route) => false,
-                    );
-                  }
-                },
-                child: const Text('Logout'),
-              ),
-              TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: const Text('Close'),
-              ),
-            ],
+      builder: (context) => AlertDialog(
+        title: const Text('Local Profile'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _item('Username', AuthService.getCurrentUser() ?? 'N/A'),
+            const SizedBox(height: 15),
+            _item('Blockchain Address', AuthService.getCurrentAddress() ?? 'N/A', isAddress: true),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () async {
+              await AuthService.logout();
+              if (context.mounted) {
+                Navigator.of(context).pushAndRemoveUntil(
+                  MaterialPageRoute(builder: (_) => const AuthPage()),
+                  (route) => false,
+                );
+              }
+            },
+            child: const Text('Logout', style: TextStyle(color: Colors.red)),
           ),
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Close')),
+        ],
+      ),
+    );
+  }
+
+  Widget _item(String label, String value, {bool isAddress = false}) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: Colors.grey)),
+        const SizedBox(height: 4),
+        SelectableText(
+          value,
+          style: TextStyle(
+            fontSize: isAddress ? 10 : 14,
+            fontFamily: isAddress ? 'monospace' : null,
+            color: isAddress ? Colors.blue[800] : Colors.black,
+          ),
+        ),
+      ],
     );
   }
 }

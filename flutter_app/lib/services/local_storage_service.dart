@@ -10,7 +10,7 @@ class LocalStorageService {
   }) async {
     final directory = await getApplicationDocumentsDirectory();
     final timestamp = DateTime.now().millisecondsSinceEpoch;
-    final filePath = '${directory.path}/$timestamp\_$fileName.enc';
+    final filePath = '${directory.path}/${timestamp}_$fileName.enc';
     
     final file = File(filePath);
     await file.writeAsBytes(encryptedData);
@@ -28,10 +28,9 @@ class LocalStorageService {
   }
 
   /// Delete a file
-  static Future<void> deleteFile(String filePath) async {
-    final file = File(filePath);
-    if (await file.exists()) {
-      await file.delete();
-    }
+  /// Get path for ledger file
+  static Future<String> getLedgerPath(String fileName) async {
+    final directory = await getApplicationDocumentsDirectory();
+    return '${directory.path}/$fileName';
   }
 }

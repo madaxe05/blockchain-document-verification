@@ -1,16 +1,14 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'dart:convert';
+import 'dart:io';
+import '../services/local_storage_service.dart';
 import '../models/document.dart';
 import 'auth_service.dart';
 
 class BlockchainService {
-  // Local Ganache/Hardhat
-  // Placeholder
+  // Filename for the local metadata ledger
+  static const _ledgerFileName = 'blockchain_ledger.json';
 
-  // Reference to Firestore collection for metadata persistence
-  static final CollectionReference _docsCollection = FirebaseFirestore.instance
-      .collection('documents');
-
-  /// Store document metadata on blockchain AND Firestore (for persistence)
+  /// Store document metadata on Local Ledger (Simulation of Blockchain)
   static Future<Document> storeDocument({
     required String fileName,
     required String fileType,
@@ -18,133 +16,117 @@ class BlockchainService {
     required String localPath,
     required int fileSize,
   }) async {
-    // --- REAL BLOCKCHAIN LOGIC (Template) ---
-    // final credentials = EthPrivateKey.fromHex("YOUR_PRIVATE_KEY");
-    // final address = await credentials.extractAddress();
-    // final contract = DeployedContract(
-    //   ContractAbi.fromJson(abiJson, "DocumentVerification"),
-    //   EthereumAddress.fromHex(_contractAddress),
-    // );
-    // final function = contract.function("registerDocument");
-    // await _client.sendTransaction(
-    //   credentials,
-    //   Transaction.callContract(
-    //     contract: contract,
-    //     function: function,
-    //     parameters: [docId, fileName, originalHash, encryptedHash, storageUrl],
-    //   ),
-    // );
-    // ----------------------------------------
-
-    // Simulate blockchain delay
+    // Step 1: Simulate blockchain latency
     await Future.delayed(const Duration(seconds: 2));
-
+    
     final docId = 'DOC-${DateTime.now().millisecondsSinceEpoch}';
     final document = Document(
       id: docId,
       name: fileName,
       type: fileType,
-      owner: AuthService.getCurrentUser() ?? 'Unknown User',
-      ownerEmail: AuthService.getCurrentUserEmail() ?? 'unknown@email.com',
+      owner: AuthService.getCurrentUser() ?? 'Local User',
+      ownerAddress: AuthService.getCurrentAddress() ?? '0x000', 
       uploadDate: DateTime.now(),
       originalHash: originalHash,
       localPath: localPath,
-      blockNumber: 1, // Simulated
+      blockNumber: 1, 
       fileSize: fileSize,
     );
 
-    // Save to Firestore for persistence between restarts
-    await _docsCollection.doc(docId).set({
+    // Step 2: Save to Local JSON Ledger for persistence
+    final ledger = await _loadLedger();
+    ledger[docId] = {
       'id': document.id,
       'name': document.name,
       'type': document.type,
       'owner': document.owner,
-      'ownerEmail': document.ownerEmail,
+      'address': document.ownerAddress, // Storing address in this field
       'uploadDate': document.uploadDate.toIso8601String(),
       'originalHash': document.originalHash,
       'localPath': document.localPath,
       'blockNumber': document.blockNumber,
       'fileSize': document.fileSize,
-    });
+    };
+    await _saveLedger(ledger);
 
     return document;
   }
 
-  /// Verify document by ID against Firestore/Blockchain
+  /// Verify document by ID against Local Ledger
   static Future<Map<String, dynamic>> verifyDocument(String docId) async {
-    final docSnapshot = await _docsCollection.doc(docId).get();
+    final ledger = await _loadLedger();
+    final data = ledger[docId];
 
-    if (!docSnapshot.exists) {
+    if (data == null) {
       return {
         'verified': false,
-        'message': 'Document not found on blockchain record',
+        'message': 'No record found on the blockchain ledger.',
       };
     }
 
-    final data = docSnapshot.data() as Map<String, dynamic>;
-    final document = Document(
-      id: data['id'],
-      name: data['name'],
-      type: data['type'],
-      owner: data['owner'],
-      ownerEmail: data['ownerEmail'],
-      uploadDate: DateTime.parse(data['uploadDate']),
-      originalHash: data['originalHash'],
-      localPath: data['localPath'],
-      blockNumber: data['blockNumber'],
-      fileSize: data['fileSize'],
-    );
+    final document = _mapToDoc(data);
 
     return {
       'verified': true,
       'document': document,
-      'message': 'Document metadata verified on blockchain record',
+      'message': 'Integrity verified against local blockchain record.',
     };
   }
 
-  /// Get all documents for current user from Firestore
+  /// Get all documents for current user address
   static Future<List<Document>> getUserDocuments() async {
-    final email = AuthService.getCurrentUserEmail();
-    if (email == null) return [];
+    final address = AuthService.getCurrentAddress();
+    if (address == null) return [];
 
-    final querySnapshot = await _docsCollection
-        .where('ownerEmail', isEqualTo: email)
-        .orderBy('uploadDate', descending: true)
-        .get();
+    final ledger = await _loadLedger();
+    final userDocs = ledger.values
+        .where((data) => data['address'] == address)
+        .map((data) => _mapToDoc(data))
+        .toList();
 
-    return querySnapshot.docs.map((doc) {
-      final data = doc.data() as Map<String, dynamic>;
-      return Document(
-        id: data['id'],
-        name: data['name'],
-        type: data['type'],
-        owner: data['owner'],
-        ownerEmail: data['ownerEmail'],
-        uploadDate: DateTime.parse(data['uploadDate']),
-        originalHash: data['originalHash'],
-        localPath: data['localPath'],
-        blockNumber: data['blockNumber'],
-        fileSize: data['fileSize'],
-      );
-    }).toList();
+    userDocs.sort((a, b) => b.uploadDate.compareTo(a.uploadDate));
+    return userDocs;
   }
 
   /// Find document by originalHash (for ID-less verification)
   static Future<Document?> findByHash(String originalHash) async {
-    final query = await _docsCollection
-        .where('originalHash', isEqualTo: originalHash)
-        .limit(1)
-        .get();
+    final ledger = await _loadLedger();
+    final match = ledger.values.firstWhere(
+      (data) => data['originalHash'] == originalHash,
+      orElse: () => null,
+    );
 
-    if (query.docs.isEmpty) return null;
+    if (match == null) return null;
+    return _mapToDoc(match);
+  }
 
-    final data = query.docs.first.data() as Map<String, dynamic>;
+  // --- INTERNAL STORAGE HELPERS ---
+
+  static Future<Map<String, dynamic>> _loadLedger() async {
+    try {
+      final path = await LocalStorageService.getLedgerPath(_ledgerFileName);
+      final file = File(path);
+      if (!await file.exists()) return {};
+      final content = await file.readAsString();
+      return jsonDecode(content);
+    } catch (e) {
+      return {};
+    }
+  }
+
+  static Future<void> _saveLedger(Map<String, dynamic> ledger) async {
+    final path = await LocalStorageService.getLedgerPath(_ledgerFileName);
+    final file = File(path);
+    await file.writeAsString(jsonEncode(ledger));
+  }
+
+  static Document _mapToDoc(Map<String, dynamic> data) {
     return Document(
       id: data['id'],
       name: data['name'],
       type: data['type'],
       owner: data['owner'],
-      ownerEmail: data['ownerEmail'],
+      ownerAddress: data['address'], // Mapped to address
       uploadDate: DateTime.parse(data['uploadDate']),
       originalHash: data['originalHash'],
       localPath: data['localPath'],
