@@ -1,4 +1,5 @@
 import 'package:flutter/services.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:http/http.dart';
 import 'package:web3dart/web3dart.dart';
 import '../models/document.dart';
@@ -10,11 +11,10 @@ class BlockchainService {
 
   final Web3Client _client = Web3Client(_rpcUrl, Client());
   
-  // Simulated blockchain storage for when Web3 is not available
-  static final Map<String, Document> _mockBlockchain = {};
-  static int _blockCount = 0;
+  // Reference to Firestore collection for metadata persistence
+  static final CollectionReference _docsCollection = FirebaseFirestore.instance.collection('documents');
 
-  /// Store document metadata on blockchain
+  /// Store document metadata on blockchain AND Firestore (for persistence)
   static Future<Document> storeDocument({
     required String fileName,
     required String fileType,
@@ -41,7 +41,7 @@ class BlockchainService {
     // );
     // ----------------------------------------
 
-    // Step 2: Simulate transaction
+    // Simulate blockchain delay
     await Future.delayed(const Duration(seconds: 2));
     
     final docId = 'DOC-${DateTime.now().millisecondsSinceEpoch}';
@@ -55,41 +55,83 @@ class BlockchainService {
       originalHash: originalHash,
       encryptedDataHash: encryptedHash,
       storageUrl: storageUrl,
-      blockNumber: ++_blockCount,
+      blockNumber: 1, // Simulated
       fileSize: fileSize,
     );
 
-    _mockBlockchain[docId] = document;
+    // Save to Firestore for persistence between restarts
+    await _docsCollection.doc(docId).set({
+      'id': document.id,
+      'name': document.name,
+      'type': document.type,
+      'owner': document.owner,
+      'ownerEmail': document.ownerEmail,
+      'uploadDate': document.uploadDate.toIso8601String(),
+      'originalHash': document.originalHash,
+      'encryptedHash': document.encryptedDataHash,
+      'storageUrl': document.storageUrl,
+      'blockNumber': document.blockNumber,
+      'fileSize': document.fileSize,
+    });
+
     return document;
   }
 
-  /// Verify document by ID
+  /// Verify document by ID against Firestore/Blockchain
   static Future<Map<String, dynamic>> verifyDocument(String docId) async {
-    await Future.delayed(const Duration(seconds: 1));
-    final document = _mockBlockchain[docId];
+    final docSnapshot = await _docsCollection.doc(docId).get();
 
-    if (document == null) {
-      return {'verified': false, 'message': 'Document not found on blockchain'};
+    if (!docSnapshot.exists) {
+      return {'verified': false, 'message': 'Document not found on blockchain record'};
     }
+
+    final data = docSnapshot.data() as Map<String, dynamic>;
+    final document = Document(
+      id: data['id'],
+      name: data['name'],
+      type: data['type'],
+      owner: data['owner'],
+      ownerEmail: data['ownerEmail'],
+      uploadDate: DateTime.parse(data['uploadDate']),
+      originalHash: data['originalHash'],
+      encryptedDataHash: data['encryptedHash'],
+      storageUrl: data['storageUrl'],
+      blockNumber: data['blockNumber'],
+      fileSize: data['fileSize'],
+    );
 
     return {
       'verified': true,
       'document': document,
-      'message': 'Document metadata verified on blockchain',
+      'message': 'Document metadata verified on blockchain record',
     };
   }
 
-  /// Get all documents for current user
+  /// Get all documents for current user from Firestore
   static Future<List<Document>> getUserDocuments() async {
     final email = AuthService.getCurrentUserEmail();
     if (email == null) return [];
     
-    await Future.delayed(const Duration(milliseconds: 500));
-    final docs = _mockBlockchain.values
-        .where((doc) => doc.ownerEmail == email)
-        .toList();
-      
-    docs.sort((a, b) => b.uploadDate.compareTo(a.uploadDate));
-    return docs;
+    final querySnapshot = await _docsCollection
+        .where('ownerEmail', isEqualTo: email)
+        .orderBy('uploadDate', descending: true)
+        .get();
+
+    return querySnapshot.docs.map((doc) {
+      final data = doc.data() as Map<String, dynamic>;
+      return Document(
+        id: data['id'],
+        name: data['name'],
+        type: data['type'],
+        owner: data['owner'],
+        ownerEmail: data['ownerEmail'],
+        uploadDate: DateTime.parse(data['uploadDate']),
+        originalHash: data['originalHash'],
+        encryptedDataHash: data['encryptedHash'],
+        storageUrl: data['storageUrl'],
+        blockNumber: data['blockNumber'],
+        fileSize: data['fileSize'],
+      );
+    }).toList();
   }
 }
