@@ -93,7 +93,7 @@ class _DashboardPageState extends State<DashboardPage> {
                   ),
                   if (_isProcessing)
                     Container(
-                      color: Colors.black26,
+                      color: Colors.black.withAlpha(66),
                       child: const Center(child: CircularProgressIndicator()),
                     ),
                 ],

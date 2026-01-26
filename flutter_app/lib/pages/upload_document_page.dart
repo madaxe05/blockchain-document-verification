@@ -229,8 +229,12 @@ class _UploadDocumentPageState extends State<UploadDocumentPage> {
     return Container(
       padding: const EdgeInsets.all(40),
       decoration: BoxDecoration(
-        color: Colors.blue.withOpacity(0.05),
-        border: Border.all(color: Colors.blue.withOpacity(0.2), width: 2, style: BorderStyle.dashed),
+        color: Colors.blue.withAlpha(13), // ~0.05 opacity
+        border: Border.all(
+          color: Colors.blue.withAlpha(77), // ~0.3 opacity
+          width: 2,
+          style: BorderStyle.solid,
+        ),
         borderRadius: BorderRadius.circular(20),
       ),
       child: const Column(
