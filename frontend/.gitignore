@@ -1,35 +1,36 @@
+# Create .gitignore
+touch .gitignore
+```
+
+### Open `.gitignore` in VS Code and paste this:
+```
 # Dependencies
 node_modules/
+**/node_modules/
 package-lock.json
 
 # Build files
 build/
 dist/
-.next/
 
 # Environment variables
 .env
 .env.local
-.env.production
 
-# Uploaded files (DON'T UPLOAD THESE - CONTAIN USER DATA!)
+# Uploaded files - SENSITIVE DATA!
 backend/uploads/
 backend/qrcodes/
+uploads/
+qrcodes/
 
 # Logs
 *.log
 npm-debug.log*
-yarn-debug.log*
 
 # OS files
 .DS_Store
 Thumbs.db
 
-# IDE files
+# IDE
 .vscode/
 .idea/
-*.swp
-*.swo
-
-# Ganache database
-ganache/
