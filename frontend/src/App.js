@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Upload, Search, FileCheck, Shield, QrCode, AlertCircle, CheckCircle, XCircle, Clock, User, Building } from 'lucide-react';
 
 export default function DocumentVerificationSystem() {
@@ -8,7 +8,6 @@ export default function DocumentVerificationSystem() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
-  // Upload form state
   const [uploadForm, setUploadForm] = useState({
     file: null,
     ownerId: '',
@@ -18,12 +17,25 @@ export default function DocumentVerificationSystem() {
     issueDate: ''
   });
 
-  // Verify form state
   const [verifyId, setVerifyId] = useState('');
   const [verifyFile, setVerifyFile] = useState(null);
 
-  const handleUpload = async (e) => {
-    e.preventDefault();
+  // Auto-verify if URL contains document ID
+  useEffect(() => {
+    const path = window.location.pathname;
+    const match = path.match(/\/verify\/(.+)/);
+    if (match) {
+      const docId = match[1];
+      setVerifyId(docId);
+      setActiveTab('verify');
+      // Auto verify after a short delay
+      setTimeout(() => {
+        verifyDocumentById(docId);
+      }, 500);
+    }
+  }, []);
+
+  const handleUpload = async () => {
     setLoading(true);
     setError(null);
     setUploadResult(null);
@@ -54,14 +66,14 @@ export default function DocumentVerificationSystem() {
     }
   };
 
-  const handleVerifyById = async (e) => {
-    e.preventDefault();
+  const verifyDocumentById = async (docId) => {
+    const idToVerify = docId || verifyId;
     setLoading(true);
     setError(null);
     setVerifyResult(null);
 
     try {
-      const response = await fetch(`http://localhost:3001/api/verify/${verifyId}`);
+      const response = await fetch(`http://localhost:3001/api/verify/${idToVerify}`);
       const data = await response.json();
 
       if (!response.ok) throw new Error(data.error);
@@ -74,8 +86,11 @@ export default function DocumentVerificationSystem() {
     }
   };
 
-  const handleVerifyByFile = async (e) => {
-    e.preventDefault();
+  const handleVerifyById = () => {
+    verifyDocumentById();
+  };
+
+  const handleVerifyByFile = async () => {
     setLoading(true);
     setError(null);
     setVerifyResult(null);
@@ -103,7 +118,6 @@ export default function DocumentVerificationSystem() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
-      {/* Header */}
       <header className="bg-white shadow-md">
         <div className="max-w-7xl mx-auto px-4 py-6">
           <div className="flex items-center gap-3">
@@ -116,10 +130,8 @@ export default function DocumentVerificationSystem() {
         </div>
       </header>
 
-      {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 py-8">
         
-        {/* Tabs */}
         <div className="flex gap-4 mb-6">
           <button
             onClick={() => setActiveTab('upload')}
@@ -145,7 +157,6 @@ export default function DocumentVerificationSystem() {
           </button>
         </div>
 
-        {/* Error Display */}
         {error && (
           <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg flex items-start gap-3">
             <AlertCircle className="w-5 h-5 text-red-600 mt-0.5" />
@@ -156,7 +167,6 @@ export default function DocumentVerificationSystem() {
           </div>
         )}
 
-        {/* Upload Tab */}
         {activeTab === 'upload' && (
           <div className="bg-white rounded-xl shadow-lg p-8">
             <h2 className="text-2xl font-bold text-gray-900 mb-6 flex items-center gap-2">
@@ -165,7 +175,6 @@ export default function DocumentVerificationSystem() {
             </h2>
 
             <div className="space-y-6">
-              {/* File Upload */}
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-2">
                   Document File *
@@ -180,7 +189,6 @@ export default function DocumentVerificationSystem() {
                 <p className="text-xs text-gray-500 mt-1">Supported: PDF, JPG, PNG, DOC, DOCX (Max 10MB)</p>
               </div>
 
-              {/* Owner ID */}
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-2">
                   Owner ID / Citizenship No *
@@ -195,7 +203,6 @@ export default function DocumentVerificationSystem() {
                 />
               </div>
 
-              {/* Owner Name */}
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-2">
                   Owner Full Name *
@@ -210,7 +217,6 @@ export default function DocumentVerificationSystem() {
                 />
               </div>
 
-              {/* Document Type */}
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-2">
                   Document Type *
@@ -229,7 +235,6 @@ export default function DocumentVerificationSystem() {
                 </select>
               </div>
 
-              {/* Issuer Organization */}
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-2">
                   Issuer Organization *
@@ -244,7 +249,6 @@ export default function DocumentVerificationSystem() {
                 />
               </div>
 
-              {/* Issue Date */}
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-2">
                   Issue Date *
@@ -278,7 +282,6 @@ export default function DocumentVerificationSystem() {
               </button>
             </div>
 
-            {/* Upload Result */}
             {uploadResult && (
               <div className="mt-8 p-6 bg-green-50 border-2 border-green-200 rounded-lg">
                 <div className="flex items-center gap-2 mb-4">
@@ -312,14 +315,14 @@ export default function DocumentVerificationSystem() {
                 <div className="mt-4 p-3 bg-blue-50 rounded border border-blue-200">
                   <p className="text-xs text-blue-900">
                     <strong>Verification URL:</strong><br />
-                    <span className="font-mono">{uploadResult.verificationUrl}</span>
+                    <span className="font-mono break-all">{uploadResult.verificationUrl}</span>
                   </p>
                 </div>
 
                 <div className="mt-4 p-3 bg-yellow-50 rounded border border-yellow-200">
                   <p className="text-xs text-yellow-900">
                     <strong>⚠️ Save Encryption Key:</strong><br />
-                    <span className="font-mono">{uploadResult.encryptionKey}</span><br />
+                    <span className="font-mono break-all">{uploadResult.encryptionKey}</span><br />
                     <span className="text-xs">You'll need this to decrypt the file later.</span>
                   </p>
                 </div>
@@ -328,11 +331,9 @@ export default function DocumentVerificationSystem() {
           </div>
         )}
 
-        {/* Verify Tab */}
         {activeTab === 'verify' && (
           <div className="space-y-6">
             
-            {/* Verify by ID */}
             <div className="bg-white rounded-xl shadow-lg p-8">
               <h2 className="text-2xl font-bold text-gray-900 mb-6 flex items-center gap-2">
                 <Search className="w-6 h-6 text-indigo-600" />
@@ -374,7 +375,6 @@ export default function DocumentVerificationSystem() {
               </div>
             </div>
 
-            {/* Verify by File */}
             <div className="bg-white rounded-xl shadow-lg p-8">
               <h2 className="text-2xl font-bold text-gray-900 mb-6 flex items-center gap-2">
                 <FileCheck className="w-6 h-6 text-indigo-600" />
@@ -415,7 +415,6 @@ export default function DocumentVerificationSystem() {
               </div>
             </div>
 
-            {/* Verification Result */}
             {verifyResult && (
               <div className={`p-6 rounded-lg border-2 ${
                 verifyResult.verified || (verifyResult.document && verifyResult.document.isValid)
@@ -494,7 +493,6 @@ export default function DocumentVerificationSystem() {
 
       </main>
 
-      {/* Footer */}
       <footer className="mt-16 bg-white border-t border-gray-200 py-6">
         <div className="max-w-7xl mx-auto px-4 text-center text-sm text-gray-600">
           <p>🔒 Secured by Blockchain Technology | Built with Ethereum Smart Contracts</p>

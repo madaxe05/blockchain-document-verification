@@ -1,120 +1,94 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
+/**
+ * @title DocumentVerification
+ * @dev Stores document hashes and metadata for immutable verification
+ */
 contract DocumentVerification {
     
-    struct Document {
-        string documentId;
-        string documentHash;
-        string ownerId;
-        string ownerName;
-        string documentType;
-        string issuerOrganization;
-        uint256 issueDate;
-        uint256 uploadDate;
-        address uploader;
-        bool isValid;
+    struct DocumentRecord {
+        string id;
+        string fileName;
+        string originalHash;
+        string encryptedHash;
+        string storageUrl;
+        address issuer;
+        uint256 timestamp;
+        uint256 blockNumber;
     }
+
+    // Mapping from document IDs to their records
+    mapping(string => DocumentRecord) private _documents;
     
-    // Mapping from document ID to Document
-    mapping(string => Document) private documents;
-    
-    // Mapping to track if a hash already exists
-    mapping(string => bool) private hashExists;
-    
-    // Array to store all document IDs
-    string[] private documentIds;
-    
-    // Events
+    // List of all stored document IDs for a specific issuer
+    mapping(address => string[]) private _issuerDocuments;
+
     event DocumentRegistered(
-        string indexed documentId,
-        string documentHash,
-        string ownerId,
-        address uploader,
+        string indexed id, 
+        address indexed issuer, 
+        string originalHash, 
         uint256 timestamp
     );
-    
-    event DocumentVerified(
-        string indexed documentId,
-        address verifier,
-        uint256 timestamp
-    );
-    
-    // Register a new document - CORRECTED PARAMETER ORDER
+
+    /**
+     * @dev Registers a new document on the blockchain
+     */
     function registerDocument(
-        string memory _documentId,
-        string memory _documentHash,
-        string memory _ownerId,
-        string memory _ownerName,
-        string memory _documentType,
-        string memory _issuerOrganization,
-        uint256 _issueDate
-    ) public returns (bool) {
-        
-        // Check if document ID already exists
-        require(bytes(documents[_documentId].documentId).length == 0, "Document ID already exists");
-        
-        // Check if hash already exists
-        require(!hashExists[_documentHash], "Document hash already registered");
-        
-        // Create new document
-        documents[_documentId] = Document({
-            documentId: _documentId,
-            documentHash: _documentHash,
-            ownerId: _ownerId,
-            ownerName: _ownerName,
-            documentType: _documentType,
-            issuerOrganization: _issuerOrganization,
-            issueDate: _issueDate,
-            uploadDate: block.timestamp,
-            uploader: msg.sender,
-            isValid: true
+        string memory id,
+        string memory fileName,
+        string memory originalHash,
+        string memory encryptedHash,
+        string memory storageUrl
+    ) public {
+        require(bytes(_documents[id].id).length == 0, "Document ID already exists");
+
+        _documents[id] = DocumentRecord({
+            id: id,
+            fileName: fileName,
+            originalHash: originalHash,
+            encryptedHash: encryptedHash,
+            storageUrl: storageUrl,
+            issuer: msg.sender,
+            timestamp: block.timestamp,
+            blockNumber: block.number
         });
-        
-        // Mark hash as used
-        hashExists[_documentHash] = true;
-        
-        // Add to document IDs array
-        documentIds.push(_documentId);
-        
-        // Emit event
-        emit DocumentRegistered(_documentId, _documentHash, _ownerId, msg.sender, block.timestamp);
-        
-        return true;
+
+        _issuerDocuments[msg.sender].push(id);
+
+        emit DocumentRegistered(id, msg.sender, originalHash, block.timestamp);
     }
-    
-    // Get document by ID
-    function getDocument(string memory _documentId) public view returns (Document memory) {
-        require(bytes(documents[_documentId].documentId).length > 0, "Document not found");
-        return documents[_documentId];
+
+    /**
+     * @dev Retrieves document metadata by ID
+     */
+    function getDocument(string memory id) public view returns (
+        string memory fileName,
+        string memory originalHash,
+        string memory encryptedHash,
+        string memory storageUrl,
+        address issuer,
+        uint256 timestamp,
+        uint256 blockNumber
+    ) {
+        DocumentRecord memory doc = _documents[id];
+        require(bytes(doc.id).length > 0, "Document not found");
+
+        return (
+            doc.fileName,
+            doc.originalHash,
+            doc.encryptedHash,
+            doc.storageUrl,
+            doc.issuer,
+            doc.timestamp,
+            doc.blockNumber
+        );
     }
-    
-    // Verify document by hash
-    function verifyDocumentByHash(string memory _documentHash) public view returns (Document memory) {
-        require(hashExists[_documentHash], "Document hash not found");
-        
-        // Find document with this hash
-        for (uint i = 0; i < documentIds.length; i++) {
-            if (keccak256(bytes(documents[documentIds[i]].documentHash)) == keccak256(bytes(_documentHash))) {
-                return documents[documentIds[i]];
-            }
-        }
-        
-        revert("Document not found");
-    }
-    
-    // Check if document exists
-    function documentExists(string memory _documentId) public view returns (bool) {
-        return bytes(documents[_documentId].documentId).length > 0;
-    }
-    
-    // Check if hash exists
-    function hashAlreadyRegistered(string memory _documentHash) public view returns (bool) {
-        return hashExists[_documentHash];
-    }
-    
-    // Get total number of documents
-    function getTotalDocuments() public view returns (uint256) {
-        return documentIds.length;
+
+    /**
+     * @dev Returns all document IDs registered by the caller
+     */
+    function getMyDocuments() public view returns (string[] memory) {
+        return _issuerDocuments[msg.sender];
     }
 }

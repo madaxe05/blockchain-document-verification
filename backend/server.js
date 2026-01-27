@@ -42,7 +42,7 @@ const upload = multer({
 });
 
 // ⚠️ IMPORTANT: REPLACE THESE VALUES AFTER DEPLOYING SMART CONTRACT
-const CONTRACT_ADDRESS = '0x38a76978c5ccF6b55720f79D23d8d90f9eaECe61'; // Replace this!
+const CONTRACT_ADDRESS = '0xFb6d27D686A5092314F1f841Ec6E92D5AbC133ad'; // Replace this!
 const CONTRACT_ABI = [
     {
         "inputs": [
